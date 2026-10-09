@@ -39,7 +39,7 @@ export function TopBar() {
   const [menuSet, , menuLoaded] = useMenuSettings(); // 메뉴 관리 (5.2) — 노출·순서·이름
   const { boards, loaded: boardsLoaded } = useBoards(); // 다중 게시판 (5.2) — 게시판 그룹에 동적 반영
   const { map: secMap } = useSections();
-  const { links } = useCustomLinks();                 // 커스텀 링크 (v2.0 사용자 요청)                 // 여러 개로 만든 섹션 (v2.0) — 갤러리·다이어리 등
+  const { links } = useCustomLinks();                 // 커스텀 링크 (v2.0 사용자 요청)
   // 저장 설정 로드 전에는 메뉴·로고를 그리지 않음 — 새로고침 시 기본 구성이 깜빡이는 것 방지 (v1.9)
   const ready = menuLoaded && boardsLoaded;
   const menu = ready
@@ -68,8 +68,7 @@ export function TopBar() {
     window.addEventListener('storage', load); // 다른 탭
     return () => { window.removeEventListener(NOTIF_EVENT, load); window.removeEventListener('storage', load); };
   }, []);
-  /* 서버에 쌓인 내 알림 받아 오기 (v2.0 포크 제보 — 기기 보관이라 남이 남긴 알림이 안 왔다).
-      접속할 때 한 번 + 실시간 신호(새 행) + 창에 돌아올 때(30초 간격 제한은 syncNotifs가 건다) */
+
   useEffect(() => {
     if (!user) return;
     void syncNotifs(user.id, true);
@@ -90,8 +89,6 @@ export function TopBar() {
   const mySet = user ? notifSettings(user.id) : null;
   void notifVer;
 
-  // 편집모드 중에는 이동 전에 종료 확인 (v1.8)
-  // 지금 보고 있는 메뉴를 다시 누르면 그 페이지를 새로 불러옴 — 다시 접속하는 느낌 (v1.9 사용자 요청)
   const nav = (href: string) => {
     if (/^https?:\/\//.test(href)) { window.open(href, '_blank'); return; }
     if (guardNav(href)) return;
@@ -100,7 +97,6 @@ export function TopBar() {
     router.push(href);
   };
 
-  // 상위 메뉴 개수 무제한 (v1.9) — 바 폭을 넘치는 항목은 「⋯」 드롭다운으로 자동 이동 (priority+)
   const gnbRef = useRef<HTMLElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [visCount, setVisCount] = useState(menu.length);
@@ -140,29 +136,26 @@ export function TopBar() {
   const visMenu = menu.slice(0, visCount);
   const moreMenu = menu.slice(visCount);
 
-  // OneSignal 푸시 알림 권한 요청 핸들러
+  // OneSignal 알림 요청 함수
   const handlePushPermission = async () => {
     if (typeof window !== 'undefined') {
-      const win = window as Record<string, unknown>;
-      if (win.OneSignal) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const os = (window as any).OneSignal;
+      if (os && os.Notifications && typeof os.Notifications.requestPermission === 'function') {
         try {
-          const oneSignal = win.OneSignal as { Notifications?: { requestPermission: () => Promise<void> } };
-          if (oneSignal.Notifications?.requestPermission) {
-            await oneSignal.Notifications.requestPermission();
-            alert('알림 권한 요청이 처리되었습니다.');
-          }
+          await os.Notifications.requestPermission();
+          alert('알림 허용 요청이 처리되었습니다.');
         } catch (e) {
           console.error(e);
         }
       } else {
-        alert('알림 기능을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+        alert('알림 모듈을 불러오는 중입니다. 잠시 후 다시 눌러주세요.');
       }
     }
   };
 
   return (
     <header className="topbar">
-      {/* 로고 — 텍스트·서브타이틀·정렬은 환경설정 > 디자인 (5.2) */}
       <div className="brand" onClick={() => nav('/')}>
         {siteLoaded && site.title}
         {siteLoaded && site.subtitle && <small className={`al-${site.align}`}>{site.subtitle}</small>}
@@ -237,24 +230,11 @@ export function TopBar() {
         ✎ 편집중
       </span>
 
-      {/* OneSignal 앱 푸시 알림 수신 버튼 */}
+      {/* OneSignal 푸시 알림 켜기 버튼 */}
       <button
         type="button"
-        style={{
-          height: '26px',
-          padding: '0 10px',
-          fontSize: '11px',
-          borderRadius: '13px',
-          background: 'rgba(255,255,255,0.08)',
-          color: '#e1e3e8',
-          border: '1px solid rgba(255,255,255,0.15)',
-          marginRight: '8px',
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-        }}
+        className="btn btn-ghost"
+        style={{ height: 27, padding: '0 10px', fontSize: 11, whiteSpace: 'nowrap', marginRight: 8 }}
         onClick={handlePushPermission}
       >
         🔔 앱 알림 켜기
