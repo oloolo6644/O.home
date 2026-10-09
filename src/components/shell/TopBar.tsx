@@ -39,7 +39,7 @@ export function TopBar() {
   const [menuSet, , menuLoaded] = useMenuSettings(); // 메뉴 관리 (5.2) — 노출·순서·이름
   const { boards, loaded: boardsLoaded } = useBoards(); // 다중 게시판 (5.2) — 게시판 그룹에 동적 반영
   const { map: secMap } = useSections();
-  const { links } = useCustomLinks();                 // 커스텀 링크 (v2.0 사용자 요청)                 // 여러 개로 만든 섹션 (v2.0) — 갤러리·다이어리 등
+  const { links } = useCustomLinks();                    // 커스텀 링크 (v2.0 사용자 요청)                 // 여러 개로 만든 섹션 (v2.0) — 갤러리·다이어리 등
   // 저장 설정 로드 전에는 메뉴·로고를 그리지 않음 — 새로고침 시 기본 구성이 깜빡이는 것 방지 (v1.9)
   const ready = menuLoaded && boardsLoaded;
   const menu = ready
@@ -200,7 +200,7 @@ export function TopBar() {
                   <button key={item.label} onClick={() => nav(item.href!)}>
                     {item.label}{dotHrefs.has(item.href!) && <small className="nd">●</small>}
                   </button>
-                )}
+                ))}
             </div>
           </div>
         )}
