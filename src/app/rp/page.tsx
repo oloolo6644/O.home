@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 가로/세로 모든 이미지 완벽 Cover 및 여백 없는 드래그 제한 적용
+// 역극 (4.9) — 실시간 채팅형. 모바일 터치 드래그 연동 및 인장 크롭 지원
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -163,10 +163,8 @@ export default function RpPage() {
     if (!imgNaturalSize.w || !imgNaturalSize.h) return { w: VIEW_SIZE, h: VIEW_SIZE };
     const aspect = imgNaturalSize.w / imgNaturalSize.h;
     if (aspect > 1) {
-      // 가로로 긴 사진: 높이를 VIEW_SIZE에 맞추고 가로는 더 넓어짐
       return { w: VIEW_SIZE * aspect, h: VIEW_SIZE };
     } else {
-      // 세로로 긴 사진: 가로를 VIEW_SIZE에 맞추고 높이는 더 길어짐
       return { w: VIEW_SIZE, h: VIEW_SIZE / aspect };
     }
   };
@@ -186,11 +184,34 @@ export default function RpPage() {
     };
   };
 
-  // 마우스 이동 시 드래그 제한 적용
+  // 마우스 클릭 드래그 시작
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  };
+
+  // 마우스 이동 시 드래그
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
     const rawX = e.clientX - dragStart.x;
     const rawY = e.clientY - dragStart.y;
+    setOffset(clampOffset(rawX, rawY, zoom));
+  };
+
+  // 모바일 터치 시작
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    setIsDragging(true);
+    setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
+  };
+
+  // 모바일 터치 드래그 이동
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const rawX = touch.clientX - dragStart.x;
+    const rawY = touch.clientY - dragStart.y;
     setOffset(clampOffset(rawX, rawY, zoom));
   };
 
@@ -618,14 +639,15 @@ export default function RpPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  touchAction: 'none', // 모바일 스크롤 방지
                 }}
-                onMouseDown={(e) => {
-                  setIsDragging(true);
-                  setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-                }}
+                onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={() => setIsDragging(false)}
                 onMouseLeave={() => setIsDragging(false)}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => setIsDragging(false)}
               >
                 {/* 점선 가이드 원 */}
                 <div
