@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 모바일 터치 드래그 연동 및 인장 크롭 지원
+// 역극 (4.9) — 실시간 채팅형. 줄바꿈 엔터 / 좌측 정렬 통일 / 모바일 반응형 넓은 레이아웃
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -158,7 +158,6 @@ export default function RpPage() {
     setRawImageSrc('');
   };
 
-  // 가로/세로 이미지에 맞춘 기본 렌더링 물리 크기 계산 (Cover 기준)
   const getRenderBaseSize = () => {
     if (!imgNaturalSize.w || !imgNaturalSize.h) return { w: VIEW_SIZE, h: VIEW_SIZE };
     const aspect = imgNaturalSize.w / imgNaturalSize.h;
@@ -169,7 +168,6 @@ export default function RpPage() {
     }
   };
 
-  // 여백이 발생하지 않도록 드래그 이동 한계(Clamping) 제한
   const clampOffset = (newX: number, newY: number, currentZoom: number) => {
     const base = getRenderBaseSize();
     const currentW = base.w * currentZoom;
@@ -184,13 +182,11 @@ export default function RpPage() {
     };
   };
 
-  // 마우스 클릭 드래그 시작
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
   };
 
-  // 마우스 이동 시 드래그
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
     const rawX = e.clientX - dragStart.x;
@@ -198,7 +194,6 @@ export default function RpPage() {
     setOffset(clampOffset(rawX, rawY, zoom));
   };
 
-  // 모바일 터치 시작
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -206,7 +201,6 @@ export default function RpPage() {
     setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
   };
 
-  // 모바일 터치 드래그 이동
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!isDragging || e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -215,13 +209,11 @@ export default function RpPage() {
     setOffset(clampOffset(rawX, rawY, zoom));
   };
 
-  // ZOOM 변경 시 이동 한계 재계산
   const handleZoomChange = (newZoom: number) => {
     setZoom(newZoom);
     setOffset(prev => clampOffset(prev.x, prev.y, newZoom));
   };
 
-  // 캔버스 크롭 저장
   const applyCroppedImage = () => {
     if (!rawImageSrc || !imgNaturalSize.w || !imgNaturalSize.h) return;
     const img = new Image();
@@ -460,7 +452,7 @@ export default function RpPage() {
                 </div>
               </div>
 
-              <div className="rp-msgs" ref={msgsRef}>
+              <div className="rp-msgs" ref={msgsRef} style={{ width: '100%', boxSizing: 'border-box' }}>
                 {msgsOf(sel).map(m => {
                   const mine = m.authorId === user.id;
                   if (m.kind === 'desc') {
@@ -481,20 +473,45 @@ export default function RpPage() {
                   const nickname = authorMember?.nickname ?? '회원';
                   const msgAvatar = (m as { avatarData?: string }).avatarData;
 
+                  // 본인 메시지 및 타인 메시지 모두 좌측 정렬로 통일 (flexDirection: row)
                   return (
-                    <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
+                    <div
+                      key={m.id}
+                      className="msg"
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        maxWidth: '100%',
+                        marginBottom: 12,
+                      }}
+                    >
                       <AvatarDisplay
                         avatarData={msgAvatar}
                         nickname={nickname}
                         size={36}
                       />
-                      <div>
-                        <div className="who">{nickname}</div>
-                        <div className="bub">{renderFormattedText(m.text)}</div>
-                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
+                      <div style={{ flex: 1, minWidth: 0, maxWidth: 'calc(100% - 46px)' }}>
+                        <div className="who" style={{ textAlign: 'left', marginBottom: 2 }}>{nickname}</div>
+                        <div
+                          className="bub"
+                          style={{
+                            display: 'inline-block',
+                            maxWidth: '100%',
+                            wordBreak: 'break-word',
+                            textAlign: 'left',
+                            boxSizing: 'border-box',
+                          }}
+                        >
+                          {renderFormattedText(m.text)}
+                        </div>
+                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3, textAlign: 'left' }}>
+                          {fmtHM(m.date)}
+                        </div>
                       </div>
                       {mine && (
-                        <span className="m-act">
+                        <span className="m-act" style={{ alignSelf: 'flex-start' }}>
                           <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
                           <button onClick={() => removeMsg(m)}>DEL</button>
                         </span>
@@ -508,7 +525,7 @@ export default function RpPage() {
               </div>
 
               {sel.status === 'ongoing' && (
-                <div className="rp-input">
+                <div className="rp-input" style={{ width: '100%', boxSizing: 'border-box' }}>
                   {/* 발화자 인장 클릭 시 모달 오픈 */}
                   <div
                     className="char-pick"
@@ -532,10 +549,14 @@ export default function RpPage() {
                     </small>
                   </div>
 
-                  <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
+                  {/* 엔터 누르면 자동 전송되지 않고 줄바꿈되도록 처리 */}
+                  <KTextarea
+                    style={{ minHeight: 44, flex: 1 }}
+                    value={text}
+                    onChange={e => setText(e.target.value)}
                     onFocus={() => setMFocus(true)}
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+                  />
                   <button className="btn btn-dark" onClick={send}>SEND</button>
                 </div>
               )}
@@ -639,7 +660,7 @@ export default function RpPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  touchAction: 'none', // 모바일 스크롤 방지
+                  touchAction: 'none',
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
