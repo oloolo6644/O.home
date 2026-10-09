@@ -1,15 +1,14 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 회원 프로필/닉네임 발화 형태로 변경
+// 역극 (4.9) — 실시간 채팅형. 회원 프로필/닉네임 발화 형태
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
 import {
   RpRoom, RpMessage, RP_SEED, rpLastDate, rpHasNew,
-  RpMessageRow, RP_MSG_KEY, RP_MSG_SEED, messagesFor, rpMarkRead, rpMemberIds,
+  RpMessageRow, RP_MSG_KEY, RP_MSG_SEED, messagesFor, rpMarkRead,
 } from '@/lib/rpStore';
-import { Character, CHAR_SEED, Relation, REL_SEED } from '@/lib/charStore';
 import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
-import { KInput, KTextarea, KSelect, KCheck } from '@/components/ui/Kit';
+import { KInput, KTextarea, KCheck } from '@/components/ui/Kit';
 import { CroppedBlobImg } from '@/components/ui/CropEditor';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
@@ -54,20 +53,19 @@ export default function RpPage() {
   const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
   const msgsOf = (r: RpRoom) => messagesFor(msgRows, r.id, r.messages);
-  const [chars] = useLocalList<Character>('ohome.chars.v1', CHAR_SEED);
-  const [rels] = useLocalList<Relation>('ohome.rels.v1', REL_SEED);
-  const memberIdsOf = (r: RpRoom) => rpMemberIds(r, rels, chars);
   
   const [selId, setSelId] = useState<string | null>(null);
   const [fStatus, setFStatus] = useState<'all' | 'ongoing' | 'done'>('ongoing');
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
 
+  const memberIdsOf = (r: RpRoom) => r.memberIds ?? [r.createdBy];
+
   const allMine = useMemo(() => (user
     ? rooms.filter(r => memberIdsOf(r).includes(user.id))
       .sort((a, b) => rpLastDate(b, messagesFor(msgRows, b.id, b.messages))
         .localeCompare(rpLastDate(a, messagesFor(msgRows, a.id, a.messages))))
-    : []), [rooms, user, msgRows, rels, chars]);
+    : []), [rooms, user, msgRows]);
   const myRooms = useMemo(() => allMine.filter(r => fStatus === 'all' || r.status === fStatus), [allMine, fStatus]);
   const sel = myRooms.find(r => r.id === selId) ?? myRooms[0];
   const cntS = (s: 'all' | 'ongoing' | 'done') =>
