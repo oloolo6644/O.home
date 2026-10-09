@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 여백 없는 인장 크롭 & 여백 방지 드래그 제한 적용
+// 역극 (4.9) — 실시간 채팅형. 가로/세로 모든 이미지 완벽 Cover 및 여백 없는 드래그 제한 적용
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -115,7 +115,7 @@ export default function RpPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 모달 및 드래그 관련 상태
+  // 모달 및 드래그 상태
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [rawImageSrc, setRawImageSrc] = useState<string>('');
   const [zoom, setZoom] = useState<number>(1);
@@ -124,9 +124,9 @@ export default function RpPage() {
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [imgNaturalSize, setImgNaturalSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
-  const VIEW_SIZE = 220; // 미리보기 박스 크기
+  const VIEW_SIZE = 220; // 원형 미리보기 크기 (px)
 
-  // 이미지 선택 처리
+  // 이미지 선택 시 원본 크기 측정
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -158,20 +158,24 @@ export default function RpPage() {
     setRawImageSrc('');
   };
 
-  // 여백이 생기지 않도록 offset 제한 계산 함수
-  const clampOffset = (newX: number, newY: number, currentZoom: number) => {
-    if (!imgNaturalSize.w || !imgNaturalSize.h) return { x: 0, y: 0 };
+  // 가로/세로 이미지에 맞춘 기본 렌더링 물리 크기 계산 (Cover 기준)
+  const getRenderBaseSize = () => {
+    if (!imgNaturalSize.w || !imgNaturalSize.h) return { w: VIEW_SIZE, h: VIEW_SIZE };
     const aspect = imgNaturalSize.w / imgNaturalSize.h;
-    let baseW = VIEW_SIZE;
-    let baseH = VIEW_SIZE;
     if (aspect > 1) {
-      baseW = VIEW_SIZE * aspect;
+      // 가로로 긴 사진: 높이를 VIEW_SIZE에 맞추고 가로는 더 넓어짐
+      return { w: VIEW_SIZE * aspect, h: VIEW_SIZE };
     } else {
-      baseH = VIEW_SIZE / aspect;
+      // 세로로 긴 사진: 가로를 VIEW_SIZE에 맞추고 높이는 더 길어짐
+      return { w: VIEW_SIZE, h: VIEW_SIZE / aspect };
     }
+  };
 
-    const currentW = baseW * currentZoom;
-    const currentH = baseH * currentZoom;
+  // 여백이 발생하지 않도록 드래그 이동 한계(Clamping) 제한
+  const clampOffset = (newX: number, newY: number, currentZoom: number) => {
+    const base = getRenderBaseSize();
+    const currentW = base.w * currentZoom;
+    const currentH = base.h * currentZoom;
 
     const maxX = Math.max(0, (currentW - VIEW_SIZE) / 2);
     const maxY = Math.max(0, (currentH - VIEW_SIZE) / 2);
@@ -182,16 +186,15 @@ export default function RpPage() {
     };
   };
 
-  // 드래그 마우스 이동 이벤트
+  // 마우스 이동 시 드래그 제한 적용
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging) return;
     const rawX = e.clientX - dragStart.x;
     const rawY = e.clientY - dragStart.y;
-    const clamped = clampOffset(rawX, rawY, zoom);
-    setOffset(clamped);
+    setOffset(clampOffset(rawX, rawY, zoom));
   };
 
-  // ZOOM 변경 시 여백 재점검
+  // ZOOM 변경 시 이동 한계 재계산
   const handleZoomChange = (newZoom: number) => {
     setZoom(newZoom);
     setOffset(prev => clampOffset(prev.x, prev.y, newZoom));
@@ -211,18 +214,10 @@ export default function RpPage() {
       if (!ctx) return;
 
       const scaleFactor = targetSize / VIEW_SIZE;
+      const base = getRenderBaseSize();
 
-      const aspect = img.width / img.height;
-      let baseW = VIEW_SIZE;
-      let baseH = VIEW_SIZE;
-      if (aspect > 1) {
-        baseW = VIEW_SIZE * aspect;
-      } else {
-        baseH = VIEW_SIZE / aspect;
-      }
-
-      const drawW = baseW * zoom * scaleFactor;
-      const drawH = baseH * zoom * scaleFactor;
+      const drawW = base.w * zoom * scaleFactor;
+      const drawH = base.h * zoom * scaleFactor;
 
       const centerX = targetSize / 2;
       const centerY = targetSize / 2;
@@ -368,6 +363,8 @@ export default function RpPage() {
   const roomSub = (r: RpRoom) => [
     r.status === 'done' ? (r.isPublic ? '완결 · 공개 전환됨' : '완결') : '진행중',
   ].join(' · ');
+
+  const renderBase = getRenderBaseSize();
 
   return (
     <section className={`page page-rp ${mFocus ? 'rp-focus' : ''}`}>
@@ -650,10 +647,12 @@ export default function RpPage() {
                   alt="preview"
                   draggable={false}
                   style={{
-                    width: imgNaturalSize.w >= imgNaturalSize.h ? 'auto' : '100%',
-                    height: imgNaturalSize.w >= imgNaturalSize.h ? '100%' : 'auto',
-                    minWidth: '100%',
-                    minHeight: '100%',
+                    width: renderBase.w,
+                    height: renderBase.h,
+                    minWidth: renderBase.w,
+                    minHeight: renderBase.h,
+                    maxWidth: 'none',
+                    maxHeight: 'none',
                     objectFit: 'cover',
                     transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
                     transition: isDragging ? 'none' : 'transform 0.1s ease-out',
