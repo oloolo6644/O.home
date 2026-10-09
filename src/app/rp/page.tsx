@@ -32,7 +32,7 @@ const fmtHM = (iso: string) => {
 /** *지문* -> 기울임, **강조** -> 굵게 파싱하는 헬퍼 함수 */
 const renderFormattedText = (rawText: string, isMe: boolean) => {
   if (!rawText) return '';
-  const emColor = isMe ? '#555555' : '#a1a1aa'; // 내 글(연배경) 지문: 짙은 회색, 상대 글(어두운 배경) 지문: 연회색
+  const emColor = isMe ? '#555555' : '#a1a1aa';
   const html = rawText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -288,6 +288,53 @@ ${rows}
 
   return (
     <section className={`page page-rp ${mFocus ? 'rp-focus' : ''}`}>
+      {/* 스타일을 강제로 덮어쓰는 인젝션 CSS */}
+      <style>{`
+        .rp-msgs .msg {
+          display: flex !important;
+          align-items: flex-start !important;
+          gap: 10px !important;
+          margin-bottom: 16px !important;
+          text-align: left !important;
+        }
+        .rp-msgs .msg.me {
+          flex-direction: row-reverse !important;
+          text-align: right !important;
+        }
+        .rp-msgs .msg .face {
+          width: 36px !important;
+          height: 36px !important;
+          border-radius: 10px !important;
+          flex-shrink: 0 !important;
+        }
+        .rp-msgs .msg .who {
+          font-size: 11px !important;
+          color: #646973 !important;
+          margin-bottom: 4px !important;
+          font-weight: 600 !important;
+        }
+        /* 상대방 말풍선 (다크) */
+        .rp-msgs .msg .bub {
+          background-color: #272a30 !important;
+          color: #ffffff !important;
+          padding: 9px 13px !important;
+          border-radius: 3px 14px 14px 14px !important;
+          max-width: 340px !important;
+          word-break: break-word !important;
+          display: inline-block !important;
+          text-align: left !important;
+          font-size: 13.5px !important;
+          line-height: 1.5 !important;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+        }
+        /* 내 말풍선 (연한 회색) */
+        .rp-msgs .msg.me .bub {
+          background-color: #e2e5e9 !important;
+          color: #181a1d !important;
+          border-radius: 14px 3px 14px 14px !important;
+        }
+      `}</style>
+
       <div className="page-head">
         <PageTitle>ROLEPLAY</PageTitle>
         <EditableDesc k="rp-desc" def="실시간 채팅형 · 참여자에게만 존재 노출 · 캐릭터 선택 발화" />
@@ -381,40 +428,12 @@ ${rows}
                     : (!!m.charOwn && isAdmin);
 
                   return (
-                    <div
-                      key={m.id}
-                      className="dm-custom-msg"
-                      style={{
-                        display: 'flex !important',
-                        flexDirection: rightSide ? 'row-reverse' : 'row',
-                        alignItems: 'flex-start',
-                        gap: '10px',
-                        marginBottom: '14px',
-                        width: '100%',
-                      }}
-                    >
+                    <div key={m.id} className={`msg ${rightSide ? 'me' : ''}`} style={{ ['--cc' as string]: hexRgb(ch?.color) }}>
                       <Face ch={ch} className="face" />
-                      <div style={{ textAlign: rightSide ? 'right' : 'left', maxWidth: '75%' }}>
-                        <div style={{ fontSize: '11px', color: '#646973', marginBottom: '4px', fontWeight: 600 }}>{name}</div>
-                        {/* 내 글: 연한 회색(#e2e5e9) / 상대 글: 어두운 회색(#272a30) */}
-                        <div
-                          className="dm-custom-bubble"
-                          style={{
-                            backgroundColor: rightSide ? '#e2e5e9 !important' : '#272a30 !important',
-                            color: rightSide ? '#181a1d !important' : '#ffffff !important',
-                            padding: '9px 13px',
-                            borderRadius: rightSide ? '14px 3px 14px 14px' : '3px 14px 14px 14px',
-                            wordBreak: 'break-word',
-                            textAlign: 'left',
-                            fontSize: '13.5px',
-                            lineHeight: 1.5,
-                            display: 'inline-block',
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                          }}
-                        >
-                          {renderFormattedText(m.text, rightSide)}
-                        </div>
-                        <div style={{ fontSize: '9px', color: 'var(--faint)', marginTop: '3px' }}>{fmtHM(m.date)}</div>
+                      <div>
+                        <div className="who">{name}</div>
+                        <div className="bub">{renderFormattedText(m.text, rightSide)}</div>
+                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
                       </div>
                       {mine && (
                         <span className="m-act">
