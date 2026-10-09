@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 극대화 (좌측 영역 침범 처리)
+// 역극 (4.9) — 실시간 채팅형. 내 말풍선(.bub) 가로 너비 100% 강제 확장 적용
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -487,7 +487,6 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      {/* 내 말풍선일 때 화면 좌측 아바타 직전 위치까지 최대한 넓게 폭 확장 */}
                       <div
                         style={{
                           width: mine ? 'calc(100% - 48px)' : 'auto',
@@ -496,33 +495,35 @@ export default function RpPage() {
                         }}
                       >
                         <div className="who">{nickname}</div>
-                        {/* 말풍선 내부 글자 좌측 정렬 및 전체 폭 활용 */}
+
+                        {/* 회색 말풍선(.bub) 자체의 너비와 max-width를 강제로 100% 확장 */}
                         <div
                           className="bub"
                           style={{
                             textAlign: 'left',
                             wordBreak: 'break-word',
-                            width: '100%',
+                            width: mine ? '100%' : 'auto',
+                            maxWidth: '100%',
                             boxSizing: 'border-box',
                             display: 'block',
                           }}
                         >
                           {renderFormattedText(m.text)}
                         </div>
+
                         <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>
                           {fmtHM(m.date)}
                         </div>
                       </div>
 
-                      {/* EDIT / DEL 버튼을 absolute로 빼서 말풍선 가로 폭을 방해하지 않도록 처리 */}
                       {mine && (
                         <span
                           className="m-act"
                           style={{
-                            position: 'absolute',
-                            top: -16,
-                            right: 48,
-                            margin: 0,
+                            position: 'relative',
+                            display: 'inline-flex',
+                            gap: 4,
+                            marginTop: 2,
                           }}
                         >
                           <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
