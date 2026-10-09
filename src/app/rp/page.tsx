@@ -29,16 +29,16 @@ const fmtHM = (iso: string) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-/** *지문* -> 기울임, **강조** -> 굵게 파싱하는 헬퍼 함수 (내 글/상대 글 색상 구분을 위해 isMe 파라미터 추가) */
+/** *지문* -> 기울임, **강조** -> 굵게 파싱하는 헬퍼 함수 */
 const renderFormattedText = (rawText: string, isMe: boolean) => {
   if (!rawText) return '';
-  const emColor = isMe ? '#666666' : '#a1a1aa'; // 내 글(연한 배경) 지문은 어두운 회색, 상대 글(어두운 배경) 지문은 연한 회색
+  const emColor = isMe ? '#555555' : '#a1a1aa'; // 내 글(연배경) 지문: 짙은 회색, 상대 글(어두운 배경) 지문: 연회색
   const html = rawText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, `<em style="color: ${emColor}; font-style: italic;">$1</em>`)
+    .replace(/\*(.*?)\*/g, `<em style="color: ${emColor} !important; font-style: italic !important;">$1</em>`)
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
@@ -383,37 +383,38 @@ ${rows}
                   return (
                     <div
                       key={m.id}
-                      className={`msg ${rightSide ? 'me' : ''}`}
+                      className="dm-custom-msg"
                       style={{
-                        ['--cc' as string]: hexRgb(ch?.color),
-                        display: 'flex',
+                        display: 'flex !important',
                         flexDirection: rightSide ? 'row-reverse' : 'row',
                         alignItems: 'flex-start',
-                        gap: 10,
-                        marginBottom: 14,
+                        gap: '10px',
+                        marginBottom: '14px',
+                        width: '100%',
                       }}
                     >
                       <Face ch={ch} className="face" />
-                      <div style={{ textAlign: rightSide ? 'right' : 'left' }}>
-                        <div className="who" style={{ fontSize: 11, color: '#646973', marginBottom: 4, fontWeight: 600 }}>{name}</div>
-                        {/* 말풍선 스타일 인라인 지정: 내 글(연회색 #e2e5e9), 상대 글(다크 #272a30) */}
+                      <div style={{ textAlign: rightSide ? 'right' : 'left', maxWidth: '75%' }}>
+                        <div style={{ fontSize: '11px', color: '#646973', marginBottom: '4px', fontWeight: 600 }}>{name}</div>
+                        {/* 내 글: 연한 회색(#e2e5e9) / 상대 글: 어두운 회색(#272a30) */}
                         <div
-                          className="bub"
+                          className="dm-custom-bubble"
                           style={{
-                            backgroundColor: rightSide ? '#e2e5e9' : '#272a30',
-                            color: rightSide ? '#181a1d' : '#ffffff',
+                            backgroundColor: rightSide ? '#e2e5e9 !important' : '#272a30 !important',
+                            color: rightSide ? '#181a1d !important' : '#ffffff !important',
                             padding: '9px 13px',
                             borderRadius: rightSide ? '14px 3px 14px 14px' : '3px 14px 14px 14px',
-                            maxWidth: 320,
                             wordBreak: 'break-word',
                             textAlign: 'left',
-                            fontSize: 13.5,
+                            fontSize: '13.5px',
                             lineHeight: 1.5,
+                            display: 'inline-block',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                           }}
                         >
                           {renderFormattedText(m.text, rightSide)}
                         </div>
-                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
+                        <div style={{ fontSize: '9px', color: 'var(--faint)', marginTop: '3px' }}>{fmtHM(m.date)}</div>
                       </div>
                       {mine && (
                         <span className="m-act">
