@@ -112,8 +112,8 @@ export default function RpPage() {
   // 회원 프로필 데이터 또는 로컬 커스텀 아바타
   const currentAvatar = myMemberInfo?.avatarRef || (myMemberInfo as Record<string, unknown> | undefined)?.avatarUrl as string || '';
 
-  // 이미지 크롭 관련 상태
-  const [cropRawUrl, setCropRawUrl] = useState<string | null>(null);
+  // 선택된 이미지 파일 관련 상태
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,29 +123,22 @@ export default function RpPage() {
       toast('이미지 크기는 5MB 이하로 선택해 주세요');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const res = evt.target?.result as string;
-      if (res) {
-        setCropRawUrl(res); // 크롭 편집 모달 열기
-      }
-    };
-    reader.readAsDataURL(file);
+    setSelectedFile(file); // 모달 열기
     e.target.value = ''; // 동일 파일 재선택 허용
   };
 
   // 크롭 편집 완료 후 동기화 저장
-  const handleCropSave = (croppedDataUrl: string) => {
-    setCropRawUrl(null);
+  const handleCropDone = (savedRefOrDataUrl: string) => {
+    setSelectedFile(null);
     if (!user) return;
 
     // 회원의 avatarRef 정보 갱신하여 기기 간 동기화
     if (members.some(m => m.id === user.id)) {
-      setMembers(members.map(m => m.id === user.id ? { ...m, avatarRef: croppedDataUrl } : m));
+      setMembers(members.map(m => m.id === user.id ? { ...m, avatarRef: savedRefOrDataUrl } : m));
     } else {
-      setMembers([...members, { id: user.id, nickname: user.id, avatarRef: croppedDataUrl } as Member]);
+      setMembers([...members, { id: user.id, nickname: user.id, avatarRef: savedRefOrDataUrl } as Member]);
     }
-    toast('프로필 사진이 변경되었습니다 (기기 간 동기화 적용)');
+    toast('프로필 사진이 변경되었습니다');
   };
 
   const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
@@ -284,13 +277,12 @@ export default function RpPage() {
       />
 
       {/* 이미지 확대 및 자르기(Crop) 모달 */}
-      {cropRawUrl && (
+      {selectedFile && (
         <CropEditorModal
-          open={!!cropRawUrl}
-          rawUrl={cropRawUrl}
+          file={selectedFile}
           aspect={1}
-          onClose={() => setCropRawUrl(null)}
-          onSave={handleCropSave}
+          onClose={() => setSelectedFile(null)}
+          onDone={(savedRef) => handleCropDone(savedRef)}
         />
       )}
 
