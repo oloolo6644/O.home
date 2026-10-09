@@ -1808,3 +1808,66 @@ body.edit-on .main-grid.gridlines .wgt{outline-offset:0}
 .up-spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line-dark);border-top-color:var(--accent);animation:upSpin .7s linear infinite;flex-shrink:0}
 @keyframes upSpin{to{transform:rotate(360deg)}}
 
+/* 사이트 테마 맞춤 역극 DM 스타일 */
+
+/* 메시지 기본 레이아웃 */
+.msg {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  margin-bottom: 14px !important;
+}
+
+/* 프로필 이미지 크기 및 둥글기 */
+.msg .face {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  flex-shrink: 0 !important;
+}
+
+/* 캐릭터 이름 */
+.msg .who {
+  font-size: 11px !important;
+  color: #646973 !important;
+  margin-bottom: 4px !important;
+  font-weight: 600 !important;
+}
+
+/* 상대방 말풍선 (차분한 소프트 쿨그레이) */
+.msg .bub {
+  background-color: #e2e5e9 !important;
+  color: #1e2025 !important;
+  padding: 9px 13px !important;
+  border-radius: 3px 14px 14px 14px !important;
+  max-width: 320px !important;
+  word-break: break-word !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  font-size: 13.5px !important;
+  line-height: 1.5 !important;
+}
+
+/* 내 글 (오른쪽 정렬) */
+.msg.me {
+  flex-direction: row-reverse !important;
+  text-align: right !important;
+}
+
+/* 내 글 캐릭터 이름 */
+.msg.me .who {
+  text-align: right !important;
+}
+
+/* 내 글 말풍선 (사이트 메인 포인트 다크 블랙) */
+.msg.me .bub {
+  background-color: #181a1d !important;
+  color: #ffffff !important;
+  border-radius: 14px 3px 14px 14px !important;
+  text-align: left !important;
+}
+
+/* 내 글 안의 지문(*텍스트*) 색상 조정 (어두운 배경용) */
+.msg.me .bub em {
+  color: #d1d5db !important; /* 내 말풍선 안 지문은 조금 더 밝은 회색 */
+}
