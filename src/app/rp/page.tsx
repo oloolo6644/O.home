@@ -33,7 +33,7 @@ const fmtHM = (iso: string) => {
 /** *지문* -> 기울임+회색, **강조** -> 굵게 파싱하는 함수 */
 const renderFormattedText = (rawText: string, isMe: boolean) => {
   if (!rawText) return '';
-  const emColor = isMe ? '#666666' : '#a1a1aa'; // 내 글(연회색 배경)에서는 짙은 회색, 상대 글(어두운 배경)에서는 연회색
+  const emColor = isMe ? '#555555' : '#a1a1aa';
   const html = rawText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -384,37 +384,38 @@ ${rows}
                   return (
                     <div
                       key={m.id}
-                      className={`msg ${rightSide ? 'me' : ''}`}
                       style={{
-                        ['--cc' as string]: hexRgb(ch?.color),
                         display: 'flex',
                         flexDirection: rightSide ? 'row-reverse' : 'row',
                         alignItems: 'flex-start',
-                        gap: 10,
-                        marginBottom: 14,
-                        textAlign: rightSide ? 'right' : 'left',
+                        gap: '10px',
+                        marginBottom: '16px',
+                        width: '100%',
                       }}
                     >
                       <Face ch={ch} className="face" />
-                      <div style={{ maxWidth: '80%' }}>
-                        <div className="who" style={{ fontSize: 11, color: '#646973', marginBottom: 4, fontWeight: 600 }}>{name}</div>
+                      <div style={{ maxWidth: '75%', textAlign: rightSide ? 'right' : 'left' }}>
+                        <div className="who" style={{ fontSize: '11px', color: '#646973', marginBottom: '4px', fontWeight: 600 }}>{name}</div>
+                        
+                        {/* 기존 .bub 대신 독립적인 커스텀 말풍선 박스 지정 */}
                         <div
-                          className="bub"
                           style={{
                             backgroundColor: rightSide ? '#e2e5e9' : '#272a30',
                             color: rightSide ? '#181a1d' : '#ffffff',
-                            padding: '9px 13px',
+                            padding: '10px 14px',
                             borderRadius: rightSide ? '14px 3px 14px 14px' : '3px 14px 14px 14px',
                             wordBreak: 'break-word',
                             textAlign: 'left',
-                            fontSize: 13.5,
-                            lineHeight: 1.5,
+                            fontSize: '13.5px',
+                            lineHeight: '1.5',
                             display: 'inline-block',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
                           }}
                         >
                           {renderFormattedText(m.text, rightSide)}
                         </div>
-                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
+                        
+                        <div style={{ fontSize: '9px', color: 'var(--faint)', marginTop: '4px' }}>{fmtHM(m.date)}</div>
                       </div>
                       {mine && (
                         <span className="m-act">
