@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 자체 Canvas 정방향 크롭/압축 및 기기 간 회원 프로필 동기화
+// 역극 (4.9) — 실시간 채팅형. 경량화 Canvas 자르기 및 이중 프로필 동기화
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -88,8 +88,8 @@ const renderFormattedText = (rawText: string) => {
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
 
-/** 이미지를 정방향 정사각형으로 캔버스 크롭 및 압축하는 함수 */
-function cropAndCompressImage(file: File, targetSize = 256): Promise<string> {
+/** 초경량화 정방향 크롭/압축 함수 (128px / 용량 최소화) */
+function cropAndCompressImage(file: File, targetSize = 128): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -99,14 +99,15 @@ function cropAndCompressImage(file: File, targetSize = 256): Promise<string> {
         canvas.width = targetSize;
         canvas.height = targetSize;
         const ctx = canvas.getContext('2d');
-        if (!ctx) return reject('Canvas error');
+        if (!ctx) return reject('Canvas context error');
 
         const minSide = Math.min(img.width, img.height);
         const sx = (img.width - minSide) / 2;
         const sy = (img.height - minSide) / 2;
 
         ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetSize, targetSize);
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
+        // JPEG 0.7 압축 (10~20KB 내외로 저장소 부담 극소화)
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
       };
       img.onerror = reject;
       img.src = e.target?.result as string;
@@ -124,6 +125,11 @@ export default function RpPage() {
   const pool = useMembers(); 
   const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
+  
+  // 역극 전용 사용자별 아바타 맵 (userId -> avatarData)
+  const [avatarMap, setAvatarMap] = useLocalList<Record<string, string>>('ohome.rp.avatar_map_v1', [{}]);
+  const currentAvatarMap = avatarMap[0] || {};
+
   const msgsOf = (r: RpRoom) => messagesFor(msgRows, r.id, r.messages);
 
   const [selId, setSelId] = useState<string | null>(null);
@@ -136,8 +142,8 @@ export default function RpPage() {
     return pool.find(p => p.id === user?.id) || members.find(p => p.id === user?.id);
   }, [pool, members, user?.id]);
 
-  // 회원 프로필 데이터
-  const currentAvatar = myMemberInfo?.avatarRef || (myMemberInfo as Record<string, unknown> | undefined)?.avatarUrl as string || '';
+  // 회원 프로필 데이터 (역극 전용 아바타 맵 우선 적용)
+  const currentAvatar = (user ? currentAvatarMap[user.id] : '') || myMemberInfo?.avatarRef || (myMemberInfo as Record<string, unknown> | undefined)?.avatarUrl as string || '';
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -145,19 +151,24 @@ export default function RpPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      // 이미지 정방향 자르기 및 자동 압축
-      const croppedDataUrl = await cropAndCompressImage(file, 256);
+      // 경량화 이미지 크롭
+      const croppedDataUrl = await cropAndCompressImage(file, 128);
       if (!user) return;
 
-      // 회원의 avatarRef 정보 갱신 (기기 간 동기화)
+      // 1. 역극 전용 아바타 맵 저장
+      const updatedMap = { ...currentAvatarMap, [user.id]: croppedDataUrl };
+      setAvatarMap([updatedMap]);
+
+      // 2. 전체 회원 리스트에도 반영
       if (members.some(m => m.id === user.id)) {
         setMembers(members.map(m => m.id === user.id ? { ...m, avatarRef: croppedDataUrl } : m));
       } else {
         setMembers([...members, { id: user.id, nickname: user.id, avatarRef: croppedDataUrl } as Member]);
       }
-      toast('프로필 사진이 적용되었습니다');
+
+      toast('프로필 사진이 성공적으로 적용되었습니다');
     } catch {
-      toast('이미지 처리에 실패했습니다.');
+      toast('이미지 처리에 실패했습니다');
     }
     e.target.value = '';
   };
@@ -194,7 +205,7 @@ export default function RpPage() {
     if (t.startsWith('/desc ')) { kind = 'desc'; t = t.slice(6).trim(); }
     if (!t) return;
     
-    // 현재 회원의 아바타 데이터를 메시지에 저장
+    // 메시지 객체에 발화 시점의 아바타 데이터 포함
     const m: RpMessage & { avatarData?: string } = {
       id: newId(),
       kind,
@@ -377,12 +388,12 @@ export default function RpPage() {
                     );
                   }
 
-                  // 해당 메시지를 쓴 회원(Member) 정보 조회
+                  // 해당 메시지를 쓴 회원 정보 조회
                   const authorMember = pool.find(p => p.id === m.authorId) || members.find(p => p.id === m.authorId);
                   const nickname = authorMember?.nickname ?? '회원';
                   
-                  // 메시지에 저장된 아바타 또는 회원 최신 아바타
-                  const msgAvatar = (m as { avatarData?: string }).avatarData || authorMember?.avatarRef;
+                  // 메시지 개별 아바타 -> 유저 최신 전용 아바타 -> 회원 아바타 순 적용
+                  const msgAvatar = (m as { avatarData?: string }).avatarData || currentAvatarMap[m.authorId] || authorMember?.avatarRef;
 
                   return (
                     <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
@@ -412,7 +423,7 @@ export default function RpPage() {
 
               {sel.status === 'ongoing' && (
                 <div className="rp-input">
-                  {/* 클릭하여 이미지 선택 및 자동 크롭/설정 */}
+                  {/* 클릭하여 이미지 선택 및 크롭/설정 */}
                   <div
                     className="char-pick"
                     style={{
