@@ -124,54 +124,65 @@ export default function RpPage() {
   const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [imgNaturalSize, setImgNaturalSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast('이미지 크기는 5MB 이하로 선택해 주세요');
+    if (file.size > 8 * 1024 * 1024) {
+      toast('이미지 크기는 8MB 이하로 선택해 주세요');
       return;
     }
     const reader = new FileReader();
     reader.onload = (evt) => {
       const res = evt.target?.result as string;
       if (res) {
-        setRawImageSrc(res);
-        setZoom(1);
-        setOffset({ x: 0, y: 0 });
-        setCropModalOpen(true);
+        const img = new Image();
+        img.onload = () => {
+          setImgNaturalSize({ w: img.width, h: img.height });
+          setRawImageSrc(res);
+          setZoom(1);
+          setOffset({ x: 0, y: 0 });
+          setCropModalOpen(true);
+        };
+        img.src = res;
       }
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   };
 
-  // 모달을 새로 열 때 이전 선택 이미지 초기화
-  const openAvatarModal = () => {
+  // 모달 닫힐 때 원본 데이터 초기화
+  const handleCloseCropModal = () => {
+    setCropModalOpen(false);
     setRawImageSrc('');
-    setCropModalOpen(true);
   };
 
-  // 정확한 원 영역 크롭 적용 (검은 여백 제로 보장)
+  // 정확한 원 영역 크롭 적용 (검은 여백 없는 cover 알고리즘)
   const applyCroppedImage = () => {
-    if (!rawImageSrc) return;
+    if (!rawImageSrc || !imgNaturalSize.w || !imgNaturalSize.h) return;
     const img = new Image();
     img.src = rawImageSrc;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const targetSize = 300; // 출력 정방형 해상도
+      const targetSize = 300; // 출력 인장 정방형 크기
       canvas.width = targetSize;
       canvas.height = targetSize;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const viewSize = 220; // 뷰포트 박스 크기(px)
+      const viewSize = 220; // 모달 화면 미리보기 박스 크기(px)
       const scaleFactor = targetSize / viewSize;
 
-      // 이미지가 뷰포트를 완전히 커버하는 스케일 비율 계산 (여백 제거 핵심)
-      const scaleToCover = Math.max(viewSize / img.width, viewSize / img.height);
-      const baseW = img.width * scaleToCover;
-      const baseH = img.height * scaleToCover;
+      // 꽉 차도록 cover 기본 비율 산출
+      const imgRatio = img.width / img.height;
+      let baseW = viewSize;
+      let baseH = viewSize;
+      if (imgRatio > 1) {
+        baseW = viewSize * imgRatio;
+      } else {
+        baseH = viewSize / imgRatio;
+      }
 
       const drawW = baseW * zoom * scaleFactor;
       const drawH = baseH * zoom * scaleFactor;
@@ -192,7 +203,7 @@ export default function RpPage() {
       const updatedList = [croppedBase64, ...recentAvatars.filter(item => item !== croppedBase64)].slice(0, 3);
       setRecentAvatars(updatedList);
 
-      setCropModalOpen(false);
+      handleCloseCropModal();
       toast('프로필 인장이 적용되었습니다');
     };
   };
@@ -455,7 +466,7 @@ export default function RpPage() {
                       alignItems: 'center',
                       gap: 2,
                     }}
-                    onClick={openAvatarModal}
+                    onClick={() => setCropModalOpen(true)}
                     title="클릭하여 인장 선택 및 변경"
                   >
                     <AvatarDisplay
@@ -500,12 +511,12 @@ export default function RpPage() {
       {/* 이미지 드래그 구역 지정 & 최근 사용 인장 선택 모달 */}
       <Modal
         open={cropModalOpen}
-        onClose={() => setCropModalOpen(false)}
+        onClose={handleCloseCropModal}
         small
         title="발화 인장 설정"
         actions={
           <>
-            <button className="btn btn-ghost" onClick={() => setCropModalOpen(false)}>CANCEL</button>
+            <button className="btn btn-ghost" onClick={handleCloseCropModal}>CANCEL</button>
             {rawImageSrc && (
               <button className="btn btn-dark" onClick={applyCroppedImage}>APPLY</button>
             )}
@@ -516,7 +527,7 @@ export default function RpPage() {
           {/* 새 이미지 선택 버튼 */}
           <button
             className="btn btn-dark"
-            style={{ width: '100%', height: 38, fontSize: 12, fontWeight: 'bold' }}
+            style={{ width: '100%', height: 36, fontSize: 12 }}
             onClick={() => fileInputRef.current?.click()}
           >
             ＋ 컴퓨터/모바일에서 사진 불러오기
@@ -534,7 +545,7 @@ export default function RpPage() {
                     key={idx}
                     onClick={() => {
                       setCustomAvatar([imgData]);
-                      setCropModalOpen(false);
+                      handleCloseCropModal();
                       toast('인장이 변경되었습니다');
                     }}
                     style={{
@@ -556,7 +567,7 @@ export default function RpPage() {
             </div>
           )}
 
-          {/* 파일에서 사진을 새로 불러왔을 경우에만 편집 영역 노출 */}
+          {/* 새 사진을 업로드했을 때만 자르기(편집/확대/위치) 박스 표시 */}
           {rawImageSrc && (
             <div style={{ width: '100%', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <div style={{ fontSize: 11, color: 'var(--sub)' }}>사진 위치 및 확대 조절</div>
@@ -572,8 +583,9 @@ export default function RpPage() {
                   boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)',
                   cursor: 'grab',
                   userSelect: 'none',
-                  display: 'grid',
-                  placeItems: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
                 onMouseDown={(e) => {
                   setIsDragging(true);
@@ -607,10 +619,10 @@ export default function RpPage() {
                   alt="preview"
                   draggable={false}
                   style={{
+                    width: imgNaturalSize.w >= imgNaturalSize.h ? 'auto' : '100%',
+                    height: imgNaturalSize.w >= imgNaturalSize.h ? '100%' : 'auto',
                     minWidth: '100%',
                     minHeight: '100%',
-                    maxWidth: 'none',
-                    maxHeight: 'none',
                     objectFit: 'cover',
                     transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
                     transition: isDragging ? 'none' : 'transform 0.1s ease-out',
