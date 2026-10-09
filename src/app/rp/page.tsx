@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 강제 확장 & 텍스트 완전 좌측 정렬
+// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 확정 확장 & SEND 버튼 밀림 완전 방지
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -479,8 +479,14 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      {/* 외부 CSS의 max-width 제약을 무력화하도록 inline-style 강제 설정 */}
-                      <div style={{ maxWidth: 'min(82%, 600px)', width: 'fit-content' }}>
+                      {/* 외부 CSS의 max-width 및 flex 오버라이드 고정 */}
+                      <div
+                        style={{
+                          maxWidth: '85%',
+                          width: 'auto',
+                          flex: '0 1 auto',
+                        }}
+                      >
                         <div className="who">{nickname}</div>
                         {/* 말풍선 내부 글자를 완전히 왼쪽 정렬로 고정 */}
                         <div
@@ -514,7 +520,16 @@ export default function RpPage() {
               </div>
 
               {sel.status === 'ongoing' && (
-                <div className="rp-input" style={{ width: '100%', boxSizing: 'border-box' }}>
+                <div
+                  className="rp-input"
+                  style={{
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: 8,
+                  }}
+                >
                   <div
                     className="char-pick"
                     style={{
@@ -523,6 +538,7 @@ export default function RpPage() {
                       flexDirection: 'column',
                       alignItems: 'center',
                       gap: 2,
+                      flexShrink: 0,
                     }}
                     onClick={() => setCropModalOpen(true)}
                     title="클릭하여 인장 선택 및 변경"
@@ -537,14 +553,33 @@ export default function RpPage() {
                     </small>
                   </div>
 
+                  {/* 텍스트 작성창 (최대 높이 지정으로 SEND 버튼 밀림 방지) */}
                   <KTextarea
-                    style={{ minHeight: 44, flex: 1 }}
+                    style={{
+                      minHeight: 44,
+                      maxHeight: 120,
+                      flex: 1,
+                      overflowY: 'auto',
+                      resize: 'none',
+                    }}
                     value={text}
                     onChange={e => setText(e.target.value)}
                     onFocus={() => setMFocus(true)}
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
                   />
-                  <button className="btn btn-dark" onClick={send}>SEND</button>
+
+                  {/* SEND 버튼 위치 및 고정 */}
+                  <button
+                    className="btn btn-dark"
+                    onClick={send}
+                    style={{
+                      flexShrink: 0,
+                      height: 44,
+                      padding: '0 16px',
+                    }}
+                  >
+                    SEND
+                  </button>
                 </div>
               )}
             </>
