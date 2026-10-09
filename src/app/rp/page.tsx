@@ -16,12 +16,16 @@ import { useMembers, Member } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
 /** 회원 프로필 얼굴 아바타 */
-function MemberFace({ mb }: { mb?: Member }) {
+function MemberFace({ mb, style }: { mb?: Member; style?: React.CSSProperties }) {
   if (mb?.avatarRef) {
-    return <CroppedBlobImg fileRef={mb.avatarRef} crop={mb.avatarCrop} className="face" />;
+    return (
+      <div className="face" style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, ...style }}>
+        <CroppedBlobImg fileRef={mb.avatarRef} crop={mb.avatarCrop} />
+      </div>
+    );
   }
   return (
-    <div className="face ph" style={{ display: 'grid', placeItems: 'center', backgroundColor: '#3a3d44', color: '#fff', fontSize: 13, fontWeight: 'bold' }}>
+    <div className="face ph" style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: '#3a3d44', color: '#fff', fontSize: 13, fontWeight: 'bold', flexShrink: 0, ...style }}>
       {mb?.nickname ? mb.nickname[0] : '?'}
     </div>
   );
@@ -295,8 +299,8 @@ export default function RpPage() {
               {sel.status === 'ongoing' && (
                 <div className="rp-input">
                   {/* 발화자 표시 — 현재 로그인된 회원 닉네임과 아바타 */}
-                  <div className="char-pick" style={{ cursor: 'default' }}>
-                    <MemberFace mb={myMemberInfo} />
+                  <div className="char-pick" style={{ cursor: 'default', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <MemberFace mb={myMemberInfo} style={{ width: 28, height: 28, fontSize: 11 }} />
                     <small style={{ fontWeight: 600 }}>{myMemberInfo?.nickname ?? '나'}</small>
                   </div>
                   <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
