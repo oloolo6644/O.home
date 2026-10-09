@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. EDIT/DEL 영역 압축 및 모바일 내 말풍선 가로 폭 극대화
+// 역극 (4.9) — 실시간 채팅형. 내 말풍선 너비 강제 확장 (빨간 선 위치까지 극대화)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -451,7 +451,7 @@ export default function RpPage() {
                 </div>
               </div>
 
-              <div className="rp-msgs" ref={msgsRef} style={{ width: '100%', boxSizing: 'border-box' }}>
+              <div className="rp-msgs" ref={msgsRef} style={{ width: '100%', padding: '12px 10px', boxSizing: 'border-box' }}>
                 {msgsOf(sel).map(m => {
                   const mine = m.authorId === user.id;
                   if (m.kind === 'desc') {
@@ -478,11 +478,10 @@ export default function RpPage() {
                       className={`msg ${mine ? 'me' : ''}`}
                       style={{
                         display: 'flex',
-                        flexDirection: mine ? 'row-reverse' : 'row',
-                        alignItems: 'flex-start',
-                        width: '100%',
-                        boxSizing: 'border-box',
                         gap: 8,
+                        marginBottom: 16,
+                        maxWidth: '100%',
+                        width: '100%',
                       }}
                     >
                       <AvatarDisplay
@@ -490,56 +489,37 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      
-                      {/* 내 말풍선 컨테이너: 가로 공간을 아바타 제외 좌측 끝까지 최대 커버 (88%) */}
+                      {/* 말풍선 컨테이너 폭을 아바타 영역 제외 남은 폭 전체(calc(100% - 44px))로 넉넉하게 확장 */}
                       <div
                         style={{
-                          maxWidth: '88%',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: mine ? 'flex-end' : 'flex-start',
-                          boxSizing: 'border-box',
+                          maxWidth: 'calc(100% - 44px)',
+                          width: 'auto',
+                          flexShrink: 1,
                         }}
                       >
-                        <div className="who" style={{ marginBottom: 2 }}>{nickname}</div>
-
-                        {/* 말풍선 본체: text-align: left와 너비 꽉 채우기 적용 */}
+                        <div className="who" style={{ marginBottom: 3 }}>{nickname}</div>
                         <div
                           className="bub"
                           style={{
                             textAlign: 'left',
                             wordBreak: 'break-word',
-                            width: mine ? '100%' : 'auto',
                             maxWidth: '100%',
                             boxSizing: 'border-box',
-                            display: 'block',
+                            display: 'inline-block',
                           }}
                         >
                           {renderFormattedText(m.text)}
                         </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
-                          {/* EDIT / DEL 버튼을 밑에 콤팩트하게 축소 배치 (폭 방해 전혀 안 함) */}
-                          {mine && (
-                            <span
-                              className="m-act"
-                              style={{
-                                display: 'inline-flex',
-                                gap: 4,
-                                flexShrink: 0,
-                                width: 'auto',
-                                minWidth: 0,
-                              }}
-                            >
-                              <button style={{ padding: '0 4px', fontSize: 9 }} onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
-                              <button style={{ padding: '0 4px', fontSize: 9 }} onClick={() => removeMsg(m)}>DEL</button>
-                            </span>
-                          )}
-                          <span style={{ fontSize: 9, color: 'var(--faint)' }}>
-                            {fmtHM(m.date)}
-                          </span>
+                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>
+                          {fmtHM(m.date)}
                         </div>
                       </div>
+                      {mine && (
+                        <span className="m-act">
+                          <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
+                          <button onClick={() => removeMsg(m)}>DEL</button>
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -582,6 +562,7 @@ export default function RpPage() {
                     </small>
                   </div>
 
+                  {/* 텍스트 작성창 (최대 높이 지정으로 SEND 버튼 밀림 방지) */}
                   <KTextarea
                     style={{
                       minHeight: 44,
@@ -596,6 +577,7 @@ export default function RpPage() {
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
                   />
 
+                  {/* SEND 버튼 고정 */}
                   <button
                     className="btn btn-dark"
                     onClick={send}
