@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 내 말풍선(.bub) 가로 너비 100% 강제 확장 적용
+// 역극 (4.9) — 실시간 채팅형. EDIT/DEL 영역 압축 및 모바일 내 말풍선 가로 폭 극대화
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -477,9 +477,12 @@ export default function RpPage() {
                       key={m.id}
                       className={`msg ${mine ? 'me' : ''}`}
                       style={{
-                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: mine ? 'row-reverse' : 'row',
+                        alignItems: 'flex-start',
                         width: '100%',
                         boxSizing: 'border-box',
+                        gap: 8,
                       }}
                     >
                       <AvatarDisplay
@@ -487,16 +490,20 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
+                      
+                      {/* 내 말풍선 컨테이너: 가로 공간을 아바타 제외 좌측 끝까지 최대 커버 (88%) */}
                       <div
                         style={{
-                          width: mine ? 'calc(100% - 48px)' : 'auto',
-                          maxWidth: mine ? 'calc(100% - 48px)' : '82%',
+                          maxWidth: '88%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: mine ? 'flex-end' : 'flex-start',
                           boxSizing: 'border-box',
                         }}
                       >
-                        <div className="who">{nickname}</div>
+                        <div className="who" style={{ marginBottom: 2 }}>{nickname}</div>
 
-                        {/* 회색 말풍선(.bub) 자체의 너비와 max-width를 강제로 100% 확장 */}
+                        {/* 말풍선 본체: text-align: left와 너비 꽉 채우기 적용 */}
                         <div
                           className="bub"
                           style={{
@@ -511,25 +518,28 @@ export default function RpPage() {
                           {renderFormattedText(m.text)}
                         </div>
 
-                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>
-                          {fmtHM(m.date)}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                          {/* EDIT / DEL 버튼을 밑에 콤팩트하게 축소 배치 (폭 방해 전혀 안 함) */}
+                          {mine && (
+                            <span
+                              className="m-act"
+                              style={{
+                                display: 'inline-flex',
+                                gap: 4,
+                                flexShrink: 0,
+                                width: 'auto',
+                                minWidth: 0,
+                              }}
+                            >
+                              <button style={{ padding: '0 4px', fontSize: 9 }} onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
+                              <button style={{ padding: '0 4px', fontSize: 9 }} onClick={() => removeMsg(m)}>DEL</button>
+                            </span>
+                          )}
+                          <span style={{ fontSize: 9, color: 'var(--faint)' }}>
+                            {fmtHM(m.date)}
+                          </span>
                         </div>
                       </div>
-
-                      {mine && (
-                        <span
-                          className="m-act"
-                          style={{
-                            position: 'relative',
-                            display: 'inline-flex',
-                            gap: 4,
-                            marginTop: 2,
-                          }}
-                        >
-                          <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
-                          <button onClick={() => removeMsg(m)}>DEL</button>
-                        </span>
-                      )}
                     </div>
                   );
                 })}
