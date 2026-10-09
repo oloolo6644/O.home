@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 크롭 편집기 지원 및 기기 간 회원 프로필 사진 동기화
+// 역극 (4.9) — 실시간 채팅형. 자체 Canvas 정방향 크롭/압축 및 기기 간 회원 프로필 동기화
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -9,13 +9,12 @@ import {
 } from '@/lib/rpStore';
 import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput, KTextarea, KCheck } from '@/components/ui/Kit';
-import { CropEditorModal } from '@/components/ui/CropEditor';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
 import { useMembers, Member } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 발화자 아바타 (커스텀 이미지, Blob/Data URL or 동그란 초성 아바타) */
+/** 발화자 아바타 (커스텀 이미지 or 동그란 초성 아바타) */
 function AvatarDisplay({
   avatarData,
   nickname,
@@ -89,11 +88,39 @@ const renderFormattedText = (rawText: string) => {
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
 
+/** 이미지를 정방향 정사각형으로 캔버스 크롭 및 압축하는 함수 */
+function cropAndCompressImage(file: File, targetSize = 256): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = targetSize;
+        canvas.height = targetSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject('Canvas error');
+
+        const minSide = Math.min(img.width, img.height);
+        const sx = (img.width - minSide) / 2;
+        const sy = (img.height - minSide) / 2;
+
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetSize, targetSize);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function RpPage() {
   const { user, isAdmin } = useAuth();
   const toast = useToast();
   const del = useConfirmDelete();
-  const [members, setMembers] = useLocalList<Member>('ohome.members.v1', []); // 전체 회원 리스트 (동기화용)
+  const [members, setMembers] = useLocalList<Member>('ohome.members.v1', []);
   const pool = useMembers(); 
   const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
@@ -109,36 +136,30 @@ export default function RpPage() {
     return pool.find(p => p.id === user?.id) || members.find(p => p.id === user?.id);
   }, [pool, members, user?.id]);
 
-  // 회원 프로필 데이터 또는 로컬 커스텀 아바타
+  // 회원 프로필 데이터
   const currentAvatar = myMemberInfo?.avatarRef || (myMemberInfo as Record<string, unknown> | undefined)?.avatarUrl as string || '';
 
-  // 선택된 이미지 파일 관련 상태
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast('이미지 크기는 5MB 이하로 선택해 주세요');
-      return;
-    }
-    setSelectedFile(file); // 모달 열기
-    e.target.value = ''; // 동일 파일 재선택 허용
-  };
+    try {
+      // 이미지 정방향 자르기 및 자동 압축
+      const croppedDataUrl = await cropAndCompressImage(file, 256);
+      if (!user) return;
 
-  // 크롭 편집 완료 후 동기화 저장
-  const handleCropDone = (savedRefOrDataUrl: string) => {
-    setSelectedFile(null);
-    if (!user) return;
-
-    // 회원의 avatarRef 정보 갱신하여 기기 간 동기화
-    if (members.some(m => m.id === user.id)) {
-      setMembers(members.map(m => m.id === user.id ? { ...m, avatarRef: savedRefOrDataUrl } : m));
-    } else {
-      setMembers([...members, { id: user.id, nickname: user.id, avatarRef: savedRefOrDataUrl } as Member]);
+      // 회원의 avatarRef 정보 갱신 (기기 간 동기화)
+      if (members.some(m => m.id === user.id)) {
+        setMembers(members.map(m => m.id === user.id ? { ...m, avatarRef: croppedDataUrl } : m));
+      } else {
+        setMembers([...members, { id: user.id, nickname: user.id, avatarRef: croppedDataUrl } as Member]);
+      }
+      toast('프로필 사진이 적용되었습니다');
+    } catch {
+      toast('이미지 처리에 실패했습니다.');
     }
-    toast('프로필 사진이 변경되었습니다');
+    e.target.value = '';
   };
 
   const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
@@ -276,16 +297,6 @@ export default function RpPage() {
         onChange={handleAvatarFileSelect}
       />
 
-      {/* 이미지 확대 및 자르기(Crop) 모달 */}
-      {selectedFile && (
-        <CropEditorModal
-          file={selectedFile}
-          aspect={1}
-          onClose={() => setSelectedFile(null)}
-          onDone={(savedRef) => handleCropDone(savedRef)}
-        />
-      )}
-
       <div className="page-head">
         <PageTitle>ROLEPLAY</PageTitle>
         <EditableDesc k="rp-desc" def="실시간 채팅형 · 참여자에게만 존재 노출 · 프로필 인장 발화" />
@@ -370,7 +381,7 @@ export default function RpPage() {
                   const authorMember = pool.find(p => p.id === m.authorId) || members.find(p => p.id === m.authorId);
                   const nickname = authorMember?.nickname ?? '회원';
                   
-                  // 메시지에 동시 저장된 프로필이 있으면 우선 표시, 없으면 회원 최신 프로필 표시
+                  // 메시지에 저장된 아바타 또는 회원 최신 아바타
                   const msgAvatar = (m as { avatarData?: string }).avatarData || authorMember?.avatarRef;
 
                   return (
@@ -401,7 +412,7 @@ export default function RpPage() {
 
               {sel.status === 'ongoing' && (
                 <div className="rp-input">
-                  {/* 클릭하면 이미지 자르기/확대 창 오픈 */}
+                  {/* 클릭하여 이미지 선택 및 자동 크롭/설정 */}
                   <div
                     className="char-pick"
                     style={{
@@ -412,7 +423,7 @@ export default function RpPage() {
                       gap: 2,
                     }}
                     onClick={() => fileInputRef.current?.click()}
-                    title="클릭하여 프로필 사진 크롭/변경"
+                    title="클릭하여 프로필 사진 변경"
                   >
                     <AvatarDisplay
                       avatarData={currentAvatar}
