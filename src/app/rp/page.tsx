@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 가독성 극대화 (88% 확장)
+// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 강제 확장 & 텍스트 완전 좌측 정렬
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -479,9 +479,10 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      {/* 말풍선 컨테이너 너비를 88%까지 시원하게 확장하여 적용 */}
-                      <div style={{ maxWidth: '88%', width: 'fit-content' }}>
+                      {/* 외부 CSS의 max-width 제약을 무력화하도록 inline-style 강제 설정 */}
+                      <div style={{ maxWidth: 'min(82%, 600px)', width: 'fit-content' }}>
                         <div className="who">{nickname}</div>
+                        {/* 말풍선 내부 글자를 완전히 왼쪽 정렬로 고정 */}
                         <div
                           className="bub"
                           style={{
@@ -489,6 +490,7 @@ export default function RpPage() {
                             wordBreak: 'break-word',
                             maxWidth: '100%',
                             boxSizing: 'border-box',
+                            display: 'block',
                           }}
                         >
                           {renderFormattedText(m.text)}
