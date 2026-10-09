@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 발화자 인장 구역 지정 크롭 & 최근 인장 3개 저장 목록 연동
+// 역극 (4.9) — 실시간 채팅형. 발화자 인장 구역 지정 크롭 & 모달 내 최근 인장 선택 연동
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -146,54 +146,57 @@ export default function RpPage() {
     e.target.value = '';
   };
 
-  // 구역 지정 크롭 이미지 적용
+  // 정확한 원 영역 크롭 적용
   const applyCroppedImage = () => {
     if (!rawImageSrc) return;
     const img = new Image();
     img.src = rawImageSrc;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const size = 300; // 결과 이미지 해상도
-      canvas.width = size;
-      canvas.height = size;
+      const targetSize = 300; // 출력 인장 정방형 크기
+      canvas.width = targetSize;
+      canvas.height = targetSize;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      ctx.fillStyle = '#181a1d';
-      ctx.fillRect(0, 0, size, size);
+      const viewSize = 220; // 모달 화면 미리보기 박스 크기(px)
+      const scaleFactor = targetSize / viewSize;
 
-      const aspect = img.width / img.height;
-      let drawW = size * zoom;
-      let drawH = (size / aspect) * zoom;
-      if (aspect < 1) {
-        drawW = (size * aspect) * zoom;
-        drawH = size * zoom;
+      ctx.fillStyle = '#181a1d';
+      ctx.fillRect(0, 0, targetSize, targetSize);
+
+      // 이미지가 커버되도록 기본 스케일 산출
+      const imgRatio = img.width / img.height;
+      let baseW = viewSize;
+      let baseH = viewSize;
+      if (imgRatio > 1) {
+        baseW = viewSize * imgRatio;
+      } else {
+        baseH = viewSize / imgRatio;
       }
 
-      const drawX = (size - drawW) / 2 + offset.x;
-      const drawY = (size - drawH) / 2 + offset.y;
+      const drawW = baseW * zoom * scaleFactor;
+      const drawH = baseH * zoom * scaleFactor;
+
+      const centerX = targetSize / 2;
+      const centerY = targetSize / 2;
+
+      const drawX = centerX - drawW / 2 + offset.x * scaleFactor;
+      const drawY = centerY - drawH / 2 + offset.y * scaleFactor;
 
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
-      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.88);
+      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.92);
 
-      // 현재 사용 인장으로 지정
+      // 현재 사용 인장 지정
       setCustomAvatar([croppedBase64]);
 
-      // 최근 인장 목록 갱신 (중복 제거 후 상위 3개 유효 저장)
+      // 최근 인장 목록 갱신 (최대 3개)
       const updatedList = [croppedBase64, ...recentAvatars.filter(item => item !== croppedBase64)].slice(0, 3);
       setRecentAvatars(updatedList);
 
       setCropModalOpen(false);
       toast('프로필 인장이 적용되었습니다');
     };
-  };
-
-  // 최근 사용한 인장 클릭하여 선택
-  const selectRecentAvatar = (imgData: string) => {
-    setCustomAvatar([imgData]);
-    const updatedList = [imgData, ...recentAvatars.filter(item => item !== imgData)].slice(0, 3);
-    setRecentAvatars(updatedList);
-    toast('인장이 변경되었습니다');
   };
 
   const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
@@ -443,70 +446,28 @@ export default function RpPage() {
               </div>
 
               {sel.status === 'ongoing' && (
-                <div className="rp-input" style={{ position: 'relative' }}>
-                  {/* 발화자 인장 선택 및 최근 3개 선택 박스 */}
+                <div className="rp-input">
+                  {/* 발화자 인장 클릭 시 모달 오픈 */}
                   <div
+                    className="char-pick"
                     style={{
+                      cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 4,
+                      gap: 2,
                     }}
+                    onClick={() => setCropModalOpen(true)}
+                    title="클릭하여 인장 선택 및 변경"
                   >
-                    <div
-                      className="char-pick"
-                      style={{
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 2,
-                      }}
-                      onClick={() => fileInputRef.current?.click()}
-                      title="클릭하여 새 프로필 사진 지정"
-                    >
-                      <AvatarDisplay
-                        avatarData={currentAvatar}
-                        nickname={myMemberInfo?.nickname}
-                        size={32}
-                      />
-                      <small style={{ fontWeight: 600, fontSize: 10 }}>
-                        {myMemberInfo?.nickname ?? '나'}
-                      </small>
-                    </div>
-
-                    {/* 최근 3개 인장 선택 스위처 */}
-                    {recentAvatars.length > 0 && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          gap: 4,
-                          padding: '2px 4px',
-                          backgroundColor: 'rgba(255,255,255,0.05)',
-                          borderRadius: 12,
-                        }}
-                      >
-                        {recentAvatars.map((imgData, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => selectRecentAvatar(imgData)}
-                            title={`최근 인장 ${idx + 1}`}
-                            style={{
-                              width: 18,
-                              height: 18,
-                              borderRadius: '50%',
-                              overflow: 'hidden',
-                              cursor: 'pointer',
-                              border: currentAvatar === imgData ? '2px solid var(--accent, #ffffff)' : '1px solid rgba(255,255,255,0.2)',
-                              opacity: currentAvatar === imgData ? 1 : 0.6,
-                              transition: 'all 0.15s ease',
-                            }}
-                          >
-                            <img src={imgData} alt="recent" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <AvatarDisplay
+                      avatarData={currentAvatar}
+                      nickname={myMemberInfo?.nickname}
+                      size={32}
+                    />
+                    <small style={{ fontWeight: 600, fontSize: 10 }}>
+                      {myMemberInfo?.nickname ?? '나'}
+                    </small>
                   </div>
 
                   <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
@@ -538,121 +499,136 @@ export default function RpPage() {
         </div>
       </div>
 
-      {/* 이미지 드래그 구역 지정 & 크롭 모달 */}
+      {/* 이미지 드래그 구역 지정 & 최근 사용 인장 선택 모달 */}
       <Modal
         open={cropModalOpen}
         onClose={() => setCropModalOpen(false)}
         small
-        title="인장 구역 지정 및 확대 설정"
+        title="발화 인장 설정"
         actions={
           <>
             <button className="btn btn-ghost" onClick={() => setCropModalOpen(false)}>CANCEL</button>
-            <button className="btn btn-dark" onClick={applyCroppedImage}>APPLY</button>
+            {rawImageSrc && (
+              <button className="btn btn-dark" onClick={applyCroppedImage}>APPLY</button>
+            )}
           </>
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          {/* 사각 크롭 영역 가이드 포함 박스 */}
-          <div
-            style={{
-              width: 200,
-              height: 200,
-              borderRadius: 8,
-              overflow: 'hidden',
-              position: 'relative',
-              backgroundColor: '#181a1d',
-              boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.2)',
-              cursor: 'grab',
-              userSelect: 'none',
-            }}
-            onMouseDown={(e) => {
-              setIsDragging(true);
-              setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-            }}
-            onMouseMove={(e) => {
-              if (!isDragging) return;
-              setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-            }}
-            onMouseUp={() => setIsDragging(false)}
-            onMouseLeave={() => setIsDragging(false)}
+          {/* 새 이미지 선택 버튼 */}
+          <button
+            className="btn btn-dark"
+            style={{ width: '100%', height: 36, fontSize: 12 }}
+            onClick={() => fileInputRef.current?.click()}
           >
-            {/* 사각 크롭 가이드 프레임 */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                width: 160,
-                height: 160,
-                transform: 'translate(-50%, -50%)',
-                borderRadius: '50%',
-                border: '2px dashed rgba(255,255,255,0.8)',
-                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.55)',
-                pointerEvents: 'none',
-                zIndex: 2,
-              }}
-            />
+            ＋ 컴퓨터/모바일에서 사진 불러오기
+          </button>
 
-            {rawImageSrc && (
-              <img
-                src={rawImageSrc}
-                alt="preview"
-                draggable={false}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
-                  transition: isDragging ? 'none' : 'transform 0.1s ease-out',
-                }}
-              />
-            )}
-          </div>
-
-          <p className="hint" style={{ margin: 0, fontSize: 11 }}>
-            이미지를 드래그하여 원 안의 구역을 맞추세요
-          </p>
-
-          {/* 확대/축소 슬라이더 */}
-          <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 11, color: 'var(--sub)' }}>ZOOM</span>
-            <input
-              type="range"
-              min="1"
-              max="3"
-              step="0.05"
-              value={zoom}
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
-              style={{ flex: 1, accentColor: '#181a1d' }}
-            />
-            <span style={{ fontSize: 11, fontWeight: 'bold', width: 32 }}>{Math.round(zoom * 100)}%</span>
-          </div>
-
-          {/* 저장된 최근 인장 3개 목록 미리보기 */}
+          {/* 저장된 최근 인장 3개 선택 영역 */}
           {recentAvatars.length > 0 && (
             <div style={{ width: '100%', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10 }}>
-              <div style={{ fontSize: 11, color: 'var(--sub)', marginBottom: 6 }}>최근 사용한 인장 (최대 3개)</div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--sub)', marginBottom: 8, textAlign: 'center' }}>
+                최근 사용한 인장
+              </div>
+              <div style={{ display: 'flex', justifyItems: 'center', justifyContent: 'center', gap: 12 }}>
                 {recentAvatars.map((imgData, idx) => (
                   <div
                     key={idx}
                     onClick={() => {
                       setCustomAvatar([imgData]);
                       setCropModalOpen(false);
-                      toast('최근 인장으로 변경되었습니다');
+                      toast('인장이 변경되었습니다');
                     }}
                     style={{
-                      width: 38,
-                      height: 38,
+                      width: 44,
+                      height: 44,
                       borderRadius: '50%',
                       overflow: 'hidden',
                       cursor: 'pointer',
-                      border: '2px solid rgba(255,255,255,0.3)',
+                      border: currentAvatar === imgData ? '2.5px solid var(--accent, #ffffff)' : '1px solid rgba(255,255,255,0.2)',
+                      opacity: currentAvatar === imgData ? 1 : 0.65,
+                      transition: 'all 0.15s ease',
                     }}
+                    title={`최근 인장 ${idx + 1}`}
                   >
                     <img src={imgData} alt="recent" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* 선택한 사진이 있을 때만 크롭 가이드 표시 */}
+          {rawImageSrc && (
+            <div style={{ width: '100%', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--sub)' }}>사진 위치 및 확대 조절</div>
+              
+              <div
+                style={{
+                  width: 220,
+                  height: 220,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  position: 'relative',
+                  backgroundColor: '#181a1d',
+                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                }}
+                onMouseDown={(e) => {
+                  setIsDragging(true);
+                  setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+                }}
+                onMouseMove={(e) => {
+                  if (!isDragging) return;
+                  setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+                }}
+                onMouseUp={() => setIsDragging(false)}
+                onMouseLeave={() => setIsDragging(false)}
+              >
+                {/* 원형 가이드 마스크 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    borderRadius: '50%',
+                    border: '2px dashed rgba(255,255,255,0.85)',
+                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.65)',
+                    pointerEvents: 'none',
+                    zIndex: 2,
+                  }}
+                />
+
+                <img
+                  src={rawImageSrc}
+                  alt="preview"
+                  draggable={false}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
+                    transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                  }}
+                />
+              </div>
+
+              {/* 확대/축소 슬라이더 */}
+              <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, color: 'var(--sub)' }}>ZOOM</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.05"
+                  value={zoom}
+                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  style={{ flex: 1, accentColor: '#181a1d' }}
+                />
+                <span style={{ fontSize: 11, fontWeight: 'bold', width: 32 }}>{Math.round(zoom * 100)}%</span>
               </div>
             </div>
           )}
