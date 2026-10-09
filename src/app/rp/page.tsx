@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 줄바꿈 엔터 / 좌측 정렬 통일 / 모바일 반응형 넓은 레이아웃
+// 역극 (4.9) — 실시간 채팅형. 내 말풍선 레이아웃 유지 + 말풍선 내 텍스트 좌측 정렬 + 줄바꿈 엔터
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -158,6 +158,7 @@ export default function RpPage() {
     setRawImageSrc('');
   };
 
+  // 가로/세로 이미지에 맞춘 기본 렌더링 물리 크기 계산 (Cover 기준)
   const getRenderBaseSize = () => {
     if (!imgNaturalSize.w || !imgNaturalSize.h) return { w: VIEW_SIZE, h: VIEW_SIZE };
     const aspect = imgNaturalSize.w / imgNaturalSize.h;
@@ -168,6 +169,7 @@ export default function RpPage() {
     }
   };
 
+  // 여백이 발생하지 않도록 드래그 이동 한계(Clamping) 제한
   const clampOffset = (newX: number, newY: number, currentZoom: number) => {
     const base = getRenderBaseSize();
     const currentW = base.w * currentZoom;
@@ -473,45 +475,25 @@ export default function RpPage() {
                   const nickname = authorMember?.nickname ?? '회원';
                   const msgAvatar = (m as { avatarData?: string }).avatarData;
 
-                  // 본인 메시지 및 타인 메시지 모두 좌측 정렬로 통일 (flexDirection: row)
                   return (
-                    <div
-                      key={m.id}
-                      className="msg"
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'row',
-                        alignItems: 'flex-start',
-                        gap: 10,
-                        maxWidth: '100%',
-                        marginBottom: 12,
-                      }}
-                    >
+                    <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
                       <AvatarDisplay
                         avatarData={msgAvatar}
                         nickname={nickname}
                         size={36}
                       />
-                      <div style={{ flex: 1, minWidth: 0, maxWidth: 'calc(100% - 46px)' }}>
-                        <div className="who" style={{ textAlign: 'left', marginBottom: 2 }}>{nickname}</div>
-                        <div
-                          className="bub"
-                          style={{
-                            display: 'inline-block',
-                            maxWidth: '100%',
-                            wordBreak: 'break-word',
-                            textAlign: 'left',
-                            boxSizing: 'border-box',
-                          }}
-                        >
+                      <div>
+                        <div className="who">{nickname}</div>
+                        {/* 말풍선 내부 텍스트를 무조건 왼쪽 정렬(text-align: left) 적용 */}
+                        <div className="bub" style={{ textAlign: 'left' }}>
                           {renderFormattedText(m.text)}
                         </div>
-                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3, textAlign: 'left' }}>
+                        <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>
                           {fmtHM(m.date)}
                         </div>
                       </div>
                       {mine && (
-                        <span className="m-act" style={{ alignSelf: 'flex-start' }}>
+                        <span className="m-act">
                           <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
                           <button onClick={() => removeMsg(m)}>DEL</button>
                         </span>
