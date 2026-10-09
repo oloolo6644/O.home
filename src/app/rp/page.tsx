@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 발화자 인장 구역 지정 크롭 & 모달 내 최근 인장 선택 연동
+// 역극 (4.9) — 실시간 채팅형. 여백 없는 인장 크롭 & 여백 방지 드래그 제한 적용
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useMembers } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 발화자 아바타 (커스텀 업로드 이미지 or 동그란 초성 아바타) */
+/** 발화자 아바타 */
 function AvatarDisplay({
   avatarData,
   nickname,
@@ -98,7 +98,7 @@ export default function RpPage() {
   const { user, isAdmin } = useAuth();
   const toast = useToast();
   const del = useConfirmDelete();
-  const pool = useMembers(); // 전체 회원 정보
+  const pool = useMembers();
   const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
   const msgsOf = (r: RpRoom) => messagesFor(msgRows, r.id, r.messages);
@@ -108,16 +108,14 @@ export default function RpPage() {
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
 
-  // 로컬에 저장되는 현재 선택된 커스텀 프사 (Base64)
   const [customAvatar, setCustomAvatar] = useLocalList<string>('ohome.rp.custom_avatar', []);
   const currentAvatar = customAvatar[0] || '';
 
-  // 최근 사용한 인장 목록 (최대 3개 저장)
   const [recentAvatars, setRecentAvatars] = useLocalList<string>('ohome.rp.recent_avatars', []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 이미지 크롭/확대 모달 상태
+  // 모달 및 드래그 관련 상태
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [rawImageSrc, setRawImageSrc] = useState<string>('');
   const [zoom, setZoom] = useState<number>(1);
@@ -126,6 +124,9 @@ export default function RpPage() {
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [imgNaturalSize, setImgNaturalSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
+  const VIEW_SIZE = 220; // 미리보기 박스 크기
+
+  // 이미지 선택 처리
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -152,36 +153,72 @@ export default function RpPage() {
     e.target.value = '';
   };
 
-  // 모달 닫힐 때 원본 데이터 초기화
   const handleCloseCropModal = () => {
     setCropModalOpen(false);
     setRawImageSrc('');
   };
 
-  // 정확한 원 영역 크롭 적용 (검은 여백 없는 cover 알고리즘)
+  // 여백이 생기지 않도록 offset 제한 계산 함수
+  const clampOffset = (newX: number, newY: number, currentZoom: number) => {
+    if (!imgNaturalSize.w || !imgNaturalSize.h) return { x: 0, y: 0 };
+    const aspect = imgNaturalSize.w / imgNaturalSize.h;
+    let baseW = VIEW_SIZE;
+    let baseH = VIEW_SIZE;
+    if (aspect > 1) {
+      baseW = VIEW_SIZE * aspect;
+    } else {
+      baseH = VIEW_SIZE / aspect;
+    }
+
+    const currentW = baseW * currentZoom;
+    const currentH = baseH * currentZoom;
+
+    const maxX = Math.max(0, (currentW - VIEW_SIZE) / 2);
+    const maxY = Math.max(0, (currentH - VIEW_SIZE) / 2);
+
+    return {
+      x: Math.min(maxX, Math.max(-maxX, newX)),
+      y: Math.min(maxY, Math.max(-maxY, newY)),
+    };
+  };
+
+  // 드래그 마우스 이동 이벤트
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    const rawX = e.clientX - dragStart.x;
+    const rawY = e.clientY - dragStart.y;
+    const clamped = clampOffset(rawX, rawY, zoom);
+    setOffset(clamped);
+  };
+
+  // ZOOM 변경 시 여백 재점검
+  const handleZoomChange = (newZoom: number) => {
+    setZoom(newZoom);
+    setOffset(prev => clampOffset(prev.x, prev.y, newZoom));
+  };
+
+  // 캔버스 크롭 저장
   const applyCroppedImage = () => {
     if (!rawImageSrc || !imgNaturalSize.w || !imgNaturalSize.h) return;
     const img = new Image();
     img.src = rawImageSrc;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const targetSize = 300; // 출력 인장 정방형 크기
+      const targetSize = 300;
       canvas.width = targetSize;
       canvas.height = targetSize;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const viewSize = 220; // 모달 화면 미리보기 박스 크기(px)
-      const scaleFactor = targetSize / viewSize;
+      const scaleFactor = targetSize / VIEW_SIZE;
 
-      // 꽉 차도록 cover 기본 비율 산출
-      const imgRatio = img.width / img.height;
-      let baseW = viewSize;
-      let baseH = viewSize;
-      if (imgRatio > 1) {
-        baseW = viewSize * imgRatio;
+      const aspect = img.width / img.height;
+      let baseW = VIEW_SIZE;
+      let baseH = VIEW_SIZE;
+      if (aspect > 1) {
+        baseW = VIEW_SIZE * aspect;
       } else {
-        baseH = viewSize / imgRatio;
+        baseH = VIEW_SIZE / aspect;
       }
 
       const drawW = baseW * zoom * scaleFactor;
@@ -196,10 +233,8 @@ export default function RpPage() {
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
       const croppedBase64 = canvas.toDataURL('image/jpeg', 0.92);
 
-      // 현재 사용 인장 지정
       setCustomAvatar([croppedBase64]);
 
-      // 최근 인장 목록 갱신 (최대 3개)
       const updatedList = [croppedBase64, ...recentAvatars.filter(item => item !== croppedBase64)].slice(0, 3);
       setRecentAvatars(updatedList);
 
@@ -574,13 +609,13 @@ export default function RpPage() {
               
               <div
                 style={{
-                  width: 220,
-                  height: 220,
-                  borderRadius: 8,
+                  width: VIEW_SIZE,
+                  height: VIEW_SIZE,
+                  borderRadius: '50%',
                   overflow: 'hidden',
                   position: 'relative',
                   backgroundColor: '#181a1d',
-                  boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)',
+                  boxShadow: '0 0 0 2px rgba(255,255,255,0.3)',
                   cursor: 'grab',
                   userSelect: 'none',
                   display: 'flex',
@@ -591,14 +626,11 @@ export default function RpPage() {
                   setIsDragging(true);
                   setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
                 }}
-                onMouseMove={(e) => {
-                  if (!isDragging) return;
-                  setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-                }}
+                onMouseMove={handleMouseMove}
                 onMouseUp={() => setIsDragging(false)}
                 onMouseLeave={() => setIsDragging(false)}
               >
-                {/* 원형 가이드 마스크 */}
+                {/* 점선 가이드 원 */}
                 <div
                   style={{
                     position: 'absolute',
@@ -608,7 +640,6 @@ export default function RpPage() {
                     bottom: 0,
                     borderRadius: '50%',
                     border: '2px dashed rgba(255,255,255,0.85)',
-                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.65)',
                     pointerEvents: 'none',
                     zIndex: 2,
                   }}
@@ -639,7 +670,7 @@ export default function RpPage() {
                   max="3"
                   step="0.05"
                   value={zoom}
-                  onChange={(e) => setZoom(parseFloat(e.target.value))}
+                  onChange={(e) => handleZoomChange(parseFloat(e.target.value))}
                   style={{ flex: 1, accentColor: '#181a1d' }}
                 />
                 <span style={{ fontSize: 11, fontWeight: 'bold', width: 32 }}>{Math.round(zoom * 100)}%</span>
