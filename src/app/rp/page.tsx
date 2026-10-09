@@ -357,7 +357,7 @@ export default function RpPage() {
       <Modal open={editMsg !== null} onClose={() => setEditMsg(null)} small title="메시지 수정" dirty
         actions={<>
           <button className="btn btn-ghost" onClick={() => setEditMsg(null)}>CANCEL</button>
-          <button className="btn btn-dark" onClick saveMsg}>SAVE</button>
+          <button className="btn btn-dark" onClick={() => saveMsg()}>SAVE</button>
         </>}>
         <KTextarea style={{ minHeight: 100 }} value={editText} onChange={e => setEditText(e.target.value)} />
       </Modal>
