@@ -39,7 +39,7 @@ export function TopBar() {
   const [menuSet, , menuLoaded] = useMenuSettings(); // 메뉴 관리 (5.2) — 노출·순서·이름
   const { boards, loaded: boardsLoaded } = useBoards(); // 다중 게시판 (5.2) — 게시판 그룹에 동적 반영
   const { map: secMap } = useSections();
-  const { links } = useCustomLinks();                    // 커스텀 링크 (v2.0 사용자 요청)                 // 여러 개로 만든 섹션 (v2.0) — 갤러리·다이어리 등
+  const { links } = useCustomLinks();                 // 커스텀 링크 (v2.0 사용자 요청)                 // 여러 개로 만든 섹션 (v2.0) — 갤러리·다이어리 등
   // 저장 설정 로드 전에는 메뉴·로고를 그리지 않음 — 새로고침 시 기본 구성이 깜빡이는 것 방지 (v1.9)
   const ready = menuLoaded && boardsLoaded;
   const menu = ready
@@ -69,7 +69,7 @@ export function TopBar() {
     return () => { window.removeEventListener(NOTIF_EVENT, load); window.removeEventListener('storage', load); };
   }, []);
   /* 서버에 쌓인 내 알림 받아 오기 (v2.0 포크 제보 — 기기 보관이라 남이 남긴 알림이 안 왔다).
-     접속할 때 한 번 + 실시간 신호(새 행) + 창에 돌아올 때(30초 간격 제한은 syncNotifs가 건다) */
+      접속할 때 한 번 + 실시간 신호(새 행) + 창에 돌아올 때(30초 간격 제한은 syncNotifs가 건다) */
   useEffect(() => {
     if (!user) return;
     void syncNotifs(user.id, true);
@@ -117,7 +117,7 @@ export function TopBar() {
     const compute = () => {
       const avail = gnbEl.clientWidth;
       const kids = Array.from(mEl.children) as HTMLElement[];
-      if (avail <= 0) {                            // gnb 숨김(모바일)·미표시 상태 — 측정 불가 시 전체 표시
+      if (avail <= 0) {                             // gnb 숨김(모바일)·미표시 상태 — 측정 불가 시 전체 표시
         setVisCount(kids.length - 1);
         return;
       }
@@ -200,7 +200,7 @@ export function TopBar() {
                   <button key={item.label} onClick={() => nav(item.href!)}>
                     {item.label}{dotHrefs.has(item.href!) && <small className="nd">●</small>}
                   </button>
-                ))}
+                )}
             </div>
           </div>
         )}
@@ -227,6 +227,43 @@ export function TopBar() {
       <span className={`edit-flag ${editOn ? 'show' : ''}`} onClick={() => requestExit()}>
         ✎ 편집중
       </span>
+
+      {/* OneSignal 앱 푸시 알림 수신 버튼 (지정한 상단바 위치) */}
+      <button
+        type="button"
+        style={{
+          height: '26px',
+          padding: '0 10px',
+          fontSize: '11px',
+          borderRadius: '13px',
+          background: 'rgba(255,255,255,0.08)',
+          color: '#e1e3e8',
+          border: '1px solid rgba(255,255,255,0.15)',
+          marginRight: '8px',
+          cursor: 'pointer',
+          whiteSpace: 'nowrap',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+        onClick={async () => {
+          if (typeof window !== 'undefined' && (window as any).OneSignal) {
+            try {
+              const OneSignal = (window as any).OneSignal;
+              await OneSignal.Notifications.requestPermission();
+              if (Notification.permission === 'granted') {
+                alert('알림 허용이 설정되었습니다!');
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          } else {
+            alert('알림 기능을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+          }
+        }}
+      >
+        🔔 앱 알림 켜기
+      </button>
 
       {/* 사용자 영역 — 비로그인: 로그인 버튼 / 로그인: 프로필 드롭다운 (3장 주석, 4.0) */}
       {user ? (
