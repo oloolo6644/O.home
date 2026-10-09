@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 확정 확장 & SEND 버튼 밀림 완전 방지
+// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 극대화 (좌측 영역 침범 처리)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -473,28 +473,36 @@ export default function RpPage() {
                   const msgAvatar = (m as { avatarData?: string }).avatarData;
 
                   return (
-                    <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
+                    <div
+                      key={m.id}
+                      className={`msg ${mine ? 'me' : ''}`}
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        boxSizing: 'border-box',
+                      }}
+                    >
                       <AvatarDisplay
                         avatarData={msgAvatar}
                         nickname={nickname}
                         size={36}
                       />
-                      {/* 외부 CSS의 max-width 및 flex 오버라이드 고정 */}
+                      {/* 내 말풍선일 때 화면 좌측 아바타 직전 위치까지 최대한 넓게 폭 확장 */}
                       <div
                         style={{
-                          maxWidth: '85%',
-                          width: 'auto',
-                          flex: '0 1 auto',
+                          width: mine ? 'calc(100% - 48px)' : 'auto',
+                          maxWidth: mine ? 'calc(100% - 48px)' : '82%',
+                          boxSizing: 'border-box',
                         }}
                       >
                         <div className="who">{nickname}</div>
-                        {/* 말풍선 내부 글자를 완전히 왼쪽 정렬로 고정 */}
+                        {/* 말풍선 내부 글자 좌측 정렬 및 전체 폭 활용 */}
                         <div
                           className="bub"
                           style={{
                             textAlign: 'left',
                             wordBreak: 'break-word',
-                            maxWidth: '100%',
+                            width: '100%',
                             boxSizing: 'border-box',
                             display: 'block',
                           }}
@@ -505,8 +513,18 @@ export default function RpPage() {
                           {fmtHM(m.date)}
                         </div>
                       </div>
+
+                      {/* EDIT / DEL 버튼을 absolute로 빼서 말풍선 가로 폭을 방해하지 않도록 처리 */}
                       {mine && (
-                        <span className="m-act">
+                        <span
+                          className="m-act"
+                          style={{
+                            position: 'absolute',
+                            top: -16,
+                            right: 48,
+                            margin: 0,
+                          }}
+                        >
                           <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
                           <button onClick={() => removeMsg(m)}>DEL</button>
                         </span>
@@ -553,7 +571,6 @@ export default function RpPage() {
                     </small>
                   </div>
 
-                  {/* 텍스트 작성창 (최대 높이 지정으로 SEND 버튼 밀림 방지) */}
                   <KTextarea
                     style={{
                       minHeight: 44,
@@ -568,7 +585,6 @@ export default function RpPage() {
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
                   />
 
-                  {/* SEND 버튼 위치 및 고정 */}
                   <button
                     className="btn btn-dark"
                     onClick={send}
