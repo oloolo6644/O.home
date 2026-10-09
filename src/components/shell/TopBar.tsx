@@ -93,13 +93,8 @@ export function TopBar() {
   // 편집모드 중에는 이동 전에 종료 확인 (v1.8)
   // 지금 보고 있는 메뉴를 다시 누르면 그 페이지를 새로 불러옴 — 다시 접속하는 느낌 (v1.9 사용자 요청)
   const nav = (href: string) => {
-    // 커스텀 링크에 다른 사이트 풀주소를 걸 수 있다 (v2.0) — 외부는 새 창으로
     if (/^https?:\/\//.test(href)) { window.open(href, '_blank'); return; }
     if (guardNav(href)) return;
-    // 같은 메뉴 재클릭 — 브라우저 새로고침 대신 페이지만 처음 상태로 다시 그림 (BGM이 끊기지 않게, v1.9).
-    // **쿼리까지 비교해야 한다** (v2.0 사용자 문의로 발견) — 경로만 보면 /board?b=2 에서 /board 를
-    // 눌렀을 때 '같은 메뉴'로 착각해 이동이 통째로 막힌다. 여러 개로 만든 게시판·갤러리·다이어리가
-    // 전부 같은 경로에 쿼리로 갈리므로, 기본 항목으로 돌아갈 수가 없었다.
     const cur = pathname + window.location.search;
     if (href === cur) { refreshPage(); return; }
     router.push(href);
@@ -117,11 +112,11 @@ export function TopBar() {
     const compute = () => {
       const avail = gnbEl.clientWidth;
       const kids = Array.from(mEl.children) as HTMLElement[];
-      if (avail <= 0) {                             // gnb 숨김(모바일)·미표시 상태 — 측정 불가 시 전체 표시
+      if (avail <= 0) {
         setVisCount(kids.length - 1);
         return;
       }
-      const moreW = kids[kids.length - 1]?.offsetWidth ?? 40;   // 마지막 = ⋯ 측정용
+      const moreW = kids[kids.length - 1]?.offsetWidth ?? 40;
       const widths = kids.slice(0, -1).map(k => k.offsetWidth);
       const total = widths.reduce((a, w) => a + w, 0) + GAP * Math.max(0, widths.length - 1);
       let count = widths.length;
@@ -145,6 +140,26 @@ export function TopBar() {
   const visMenu = menu.slice(0, visCount);
   const moreMenu = menu.slice(visCount);
 
+  // OneSignal 푸시 알림 권한 요청 핸들러
+  const handlePushPermission = async () => {
+    if (typeof window !== 'undefined') {
+      const win = window as Record<string, unknown>;
+      if (win.OneSignal) {
+        try {
+          const oneSignal = win.OneSignal as { Notifications?: { requestPermission: () => Promise<void> } };
+          if (oneSignal.Notifications?.requestPermission) {
+            await oneSignal.Notifications.requestPermission();
+            alert('알림 권한 요청이 처리되었습니다.');
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        alert('알림 기능을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
+      }
+    }
+  };
+
   return (
     <header className="topbar">
       {/* 로고 — 텍스트·서브타이틀·정렬은 환경설정 > 디자인 (5.2) */}
@@ -157,7 +172,6 @@ export function TopBar() {
         {visMenu.map(item =>
           item.children ? (
             <div className="grp" key={item.label}>
-              {/* 상위 클릭 → 첫 하위 페이지 (v1.8) · 안 읽은 알림이 있는 메뉴에 점 (4.13) */}
               <button onClick={() => nav(item.children![0].href)}>
                 {item.label}{item.children.some(c => dotHrefs.has(c.href)) && <small className="nd">●</small>}
               </button>
@@ -179,7 +193,6 @@ export function TopBar() {
             </button>
           )
         )}
-        {/* 넘친 상위 메뉴 — ⋯ 드롭다운 (그룹은 캡션+하위, 단독은 바로 이동) */}
         {moreMenu.length > 0 && (
           <div className="grp more">
             <button aria-label="더보기">
@@ -204,31 +217,27 @@ export function TopBar() {
             </div>
           </div>
         )}
-        {/* 폭 측정용 사본 (보이지 않음) — 마지막 항목은 ⋯ 버튼 폭 */}
         <div className="gnb gnb-measure" ref={measureRef} aria-hidden>
           {menu.map(item => <button key={item.label} tabIndex={-1}>{item.label}{item.children && <span> ▾</span>}</button>)}
           <button tabIndex={-1}>⋯</button>
         </div>
       </nav>
 
-      {/* 위젯 추가 — 그리드 토글 왼쪽 (v1.9 사용자 확정: 본문 하단 버튼 대체) */}
       {editOn && pathname === '/' && (
         <button className="btn btn-ghost" style={{ height: 27, padding: '0 11px', fontSize: 10.5, whiteSpace: 'nowrap' }}
           onClick={() => window.dispatchEvent(new Event('ohome-add-widget'))}>＋ 위젯</button>
       )}
-      {/* 그리드 토글 — 메인에서 편집모드 켰을 때만 (v1.9) */}
       <KToggle
         className={`grid-chip ${editOn && pathname === '/' ? 'show' : ''}`}
         label="그리드"
         checked={gridOn}
         onChange={setGridOn}
       />
-      {/* 편집중 표시 — 클릭 시 종료 확인 (v1.8) */}
       <span className={`edit-flag ${editOn ? 'show' : ''}`} onClick={() => requestExit()}>
         ✎ 편집중
       </span>
 
-      {/* OneSignal 앱 푸시 알림 수신 버튼 (지정한 상단바 위치) */}
+      {/* OneSignal 앱 푸시 알림 수신 버튼 */}
       <button
         type="button"
         style={{
@@ -246,49 +255,31 @@ export function TopBar() {
           alignItems: 'center',
           gap: '4px',
         }}
-        onClick={async () => {
-          if (typeof window !== 'undefined' && (window as any).OneSignal) {
-            try {
-              const OneSignal = (window as any).OneSignal;
-              await OneSignal.Notifications.requestPermission();
-              if (Notification.permission === 'granted') {
-                alert('알림 허용이 설정되었습니다!');
-              }
-            } catch (e) {
-              console.error(e);
-            }
-          } else {
-            alert('알림 기능을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
-          }
-        }}
+        onClick={handlePushPermission}
       >
         🔔 앱 알림 켜기
       </button>
 
-      {/* 사용자 영역 — 비로그인: 로그인 버튼 / 로그인: 프로필 드롭다운 (3장 주석, 4.0) */}
+      {/* 사용자 영역 */}
       {user ? (
         <div className="user-wrap" ref={userRef}>
           <div className="user-chip" onClick={() => setMenuOpen(o => !o)}>
-            {/* 알림 종 (4.13) — 클릭 시 알림 드롭다운 (프로필 메뉴와 별개) */}
             <span className="badge-dot" data-n={String(Math.min(9, unread.length))}
               onClick={e => { e.stopPropagation(); setMenuOpen(false); setNotifOpen(o => !o); }}>
               <BellIcon />
             </span>
-            {/* 기본 아바타는 이니셜 없이 단색/그라데이션 (v1.9) */}
             <div className="avatar" style={!avatarSrc && user.avatarColor ? { background: user.avatarColor } : undefined}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {avatarSrc && <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
             </div>
             {user.nickname} <span style={{ fontSize: 9, color: '#8d939d' }}>▾</span>
           </div>
-          {/* 알림 드롭다운 — 목록 + 모두 읽음 + 항목별 on/off (4.13) */}
           <div className={`user-menu notif-menu ${notifOpen ? 'open' : ''}`}>
             <div className="nh">
               <b>알림</b>
               {unread.length > 0 && (
                 <button className="all" onClick={() => markAllRead(user.id)}>모두 읽음</button>
               )}
-              {/* 읽은 알림은 하루 뒤 저절로 사라지지만, 바로 치우고 싶을 때 (v2.0 사용자 요청) */}
               {myNotifs.some(n => n.read) && (
                 <button className="all" onClick={() => clearReadNotifs(user.id)}>읽은 알림 정리</button>
               )}
@@ -305,14 +296,13 @@ export function TopBar() {
             {mySet && (
               <div className="nset">
                 {(Object.keys(NOTIF_TYPE_LABEL) as NotifType[])
-                  .filter(k => k !== 'guest' || isAdmin) // 방명록 알림은 관리자 항목
+                  .filter(k => k !== 'guest' || isAdmin)
                   .map(k => (
                     <label key={k} className="row">
                       <span>{NOTIF_TYPE_LABEL[k]}</span>
                       <KToggle checked={mySet[k]} onChange={v => setNotifSetting(user.id, k, v)} />
                     </label>
                   ))}
-                {/* 전달 자가진단 (v2.0) — 서버 저장→읽기를 실제로 해 보고 결과를 알려 준다 */}
                 <button className="all" style={{ marginTop: 2 }}
                   onClick={async () => { toast(await selfTestNotif(user.id)); void syncNotifs(user.id, true); }}>
                   알림 전달 확인
@@ -324,7 +314,6 @@ export function TopBar() {
             <button onClick={() => { setMenuOpen(false); nav('/mypage'); }}>정보수정</button>
             {isAdmin && (
               <>
-                {/* 편집모드 항목은 지원 페이지에서만 노출 (편집 중이면 끄기 위해 항상 표시) */}
                 {(editAvailable || editOn) && (
                   <button onClick={() => { setMenuOpen(false); toggleEdit(); }}>
                     편집모드 {editOn ? '끄기' : '켜기'}
