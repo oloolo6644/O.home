@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 내 말풍선 너비 강제 확장 (빨간 선 위치까지 극대화)
+// 역극 (4.9) — 실시간 채팅형. 내 말풍선 너비를 상대 프로필 직전(75%)으로 조정하여 가독성 최적화
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -489,10 +489,10 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      {/* 말풍선 컨테이너 폭을 아바타 영역 제외 남은 폭 전체(calc(100% - 44px))로 넉넉하게 확장 */}
+                      {/* 상대 프로필/닉네임 위치(75%) 직전까지만 늘어나도록 너비 제한 조율 */}
                       <div
                         style={{
-                          maxWidth: 'calc(100% - 44px)',
+                          maxWidth: '75%',
                           width: 'auto',
                           flexShrink: 1,
                         }}
@@ -562,7 +562,7 @@ export default function RpPage() {
                     </small>
                   </div>
 
-                  {/* 텍스트 작성창 (최대 높이 지정으로 SEND 버튼 밀림 방지) */}
+                  {/* 텍스트 작성창 */}
                   <KTextarea
                     style={{
                       minHeight: 44,
@@ -577,7 +577,7 @@ export default function RpPage() {
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
                   />
 
-                  {/* SEND 버튼 고정 */}
+                  {/* SEND 버튼 */}
                   <button
                     className="btn btn-dark"
                     onClick={send}
