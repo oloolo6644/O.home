@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 경량화 Canvas 자르기 및 이중 프로필 동기화
+// 역극 (4.9) — 실시간 채팅형. 발화자 인장 크롭/확대 편집 및 전송 연동
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -11,10 +11,10 @@ import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput, KTextarea, KCheck } from '@/components/ui/Kit';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
-import { useMembers, Member } from '@/lib/members';
+import { useMembers } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 발화자 아바타 (커스텀 이미지 or 동그란 초성 아바타) */
+/** 발화자 아바타 (커스텀 업로드 이미지 or 동그란 초성 아바타) */
 function AvatarDisplay({
   avatarData,
   nickname,
@@ -88,48 +88,13 @@ const renderFormattedText = (rawText: string) => {
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
 
-/** 초경량화 정방향 크롭/압축 함수 (128px / 용량 최소화) */
-function cropAndCompressImage(file: File, targetSize = 128): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = targetSize;
-        canvas.height = targetSize;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return reject('Canvas context error');
-
-        const minSide = Math.min(img.width, img.height);
-        const sx = (img.width - minSide) / 2;
-        const sy = (img.height - minSide) / 2;
-
-        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, targetSize, targetSize);
-        // JPEG 0.7 압축 (10~20KB 내외로 저장소 부담 극소화)
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-      };
-      img.onerror = reject;
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 export default function RpPage() {
   const { user, isAdmin } = useAuth();
   const toast = useToast();
   const del = useConfirmDelete();
-  const [members, setMembers] = useLocalList<Member>('ohome.members.v1', []);
-  const pool = useMembers(); 
+  const pool = useMembers(); // 전체 회원 정보
   const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
-  
-  // 역극 전용 사용자별 아바타 맵 (userId -> avatarData)
-  const [avatarMap, setAvatarMap] = useLocalList<Record<string, string>>('ohome.rp.avatar_map_v1', [{}]);
-  const currentAvatarMap = avatarMap[0] || {};
-
   const msgsOf = (r: RpRoom) => messagesFor(msgRows, r.id, r.messages);
 
   const [selId, setSelId] = useState<string | null>(null);
@@ -137,40 +102,75 @@ export default function RpPage() {
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
 
-  // 현재 로그인 회원 정보
-  const myMemberInfo = useMemo(() => {
-    return pool.find(p => p.id === user?.id) || members.find(p => p.id === user?.id);
-  }, [pool, members, user?.id]);
-
-  // 회원 프로필 데이터 (역극 전용 아바타 맵 우선 적용)
-  const currentAvatar = (user ? currentAvatarMap[user.id] : '') || myMemberInfo?.avatarRef || (myMemberInfo as Record<string, unknown> | undefined)?.avatarUrl as string || '';
+  // 로컬에 저장되는 현재 선택된 커스텀 프사 (Base64)
+  const [customAvatar, setCustomAvatar] = useLocalList<string>('ohome.rp.custom_avatar', []);
+  const currentAvatar = customAvatar[0] || '';
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAvatarFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 이미지 크롭/확대 모달 상태
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [rawImageSrc, setRawImageSrc] = useState<string>('');
+  const [zoom, setZoom] = useState<number>(1);
+  const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    try {
-      // 경량화 이미지 크롭
-      const croppedDataUrl = await cropAndCompressImage(file, 128);
-      if (!user) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast('이미지 크기는 5MB 이하로 선택해 주세요');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const res = evt.target?.result as string;
+      if (res) {
+        setRawImageSrc(res);
+        setZoom(1);
+        setOffset({ x: 0, y: 0 });
+        setCropModalOpen(true);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ''; // 동일 파일 재선택 가능하게 리셋
+  };
 
-      // 1. 역극 전용 아바타 맵 저장
-      const updatedMap = { ...currentAvatarMap, [user.id]: croppedDataUrl };
-      setAvatarMap([updatedMap]);
+  // 확대 및 오프셋 적용하여 캔버스로 크롭 이미지 생성
+  const applyCroppedImage = () => {
+    if (!rawImageSrc) return;
+    const img = new Image();
+    img.src = rawImageSrc;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const size = 300; // 결과 이미지 크기 (픽셀)
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-      // 2. 전체 회원 리스트에도 반영
-      if (members.some(m => m.id === user.id)) {
-        setMembers(members.map(m => m.id === user.id ? { ...m, avatarRef: croppedDataUrl } : m));
-      } else {
-        setMembers([...members, { id: user.id, nickname: user.id, avatarRef: croppedDataUrl } as Member]);
+      ctx.fillStyle = '#181a1d';
+      ctx.fillRect(0, 0, size, size);
+
+      // 캔버스 중앙 기준 드로잉
+      const aspect = img.width / img.height;
+      let drawW = size * zoom;
+      let drawH = (size / aspect) * zoom;
+      if (aspect < 1) {
+        drawW = (size * aspect) * zoom;
+        drawH = size * zoom;
       }
 
-      toast('프로필 사진이 성공적으로 적용되었습니다');
-    } catch {
-      toast('이미지 처리에 실패했습니다');
-    }
-    e.target.value = '';
+      const drawX = (size - drawW) / 2 + offset.x;
+      const drawY = (size - drawH) / 2 + offset.y;
+
+      ctx.drawImage(img, drawX, drawY, drawW, drawH);
+      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.88);
+      setCustomAvatar([croppedBase64]);
+      setCropModalOpen(false);
+      toast('프로필 인장이 적용되었습니다');
+    };
   };
 
   const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
@@ -205,7 +205,6 @@ export default function RpPage() {
     if (t.startsWith('/desc ')) { kind = 'desc'; t = t.slice(6).trim(); }
     if (!t) return;
     
-    // 메시지 객체에 발화 시점의 아바타 데이터 포함
     const m: RpMessage & { avatarData?: string } = {
       id: newId(),
       kind,
@@ -254,10 +253,10 @@ export default function RpPage() {
   const createRoom = () => {
     if (!user) return;
     if (!nTitle.trim()) { toast('방 제목을 입력해 주세요'); return; }
-    const membersList = Array.from(new Set([user.id, ...nMembers]));
+    const members = Array.from(new Set([user.id, ...nMembers]));
     const room: RpRoom = {
       id: newId(), title: nTitle.trim(),
-      memberIds: membersList, status: 'ongoing', isPublic: false,
+      memberIds: members, status: 'ongoing', isPublic: false,
       createdBy: user.id, created: new Date().toISOString(), lastRead: {}, messages: [],
     };
     setRooms([room, ...rooms]);
@@ -283,6 +282,8 @@ export default function RpPage() {
     }, `대화 ${count}개도 함께 삭제됩니다.`);
   };
 
+  const myMemberInfo = pool.find(p => p.id === user?.id);
+
   if (!loaded) return <section className="page" />;
 
   if (!user) {
@@ -305,7 +306,7 @@ export default function RpPage() {
         ref={fileInputRef}
         accept="image/*"
         style={{ display: 'none' }}
-        onChange={handleAvatarFileSelect}
+        onChange={handleAvatarSelect}
       />
 
       <div className="page-head">
@@ -388,12 +389,9 @@ export default function RpPage() {
                     );
                   }
 
-                  // 해당 메시지를 쓴 회원 정보 조회
-                  const authorMember = pool.find(p => p.id === m.authorId) || members.find(p => p.id === m.authorId);
+                  const authorMember = pool.find(p => p.id === m.authorId);
                   const nickname = authorMember?.nickname ?? '회원';
-                  
-                  // 메시지 개별 아바타 -> 유저 최신 전용 아바타 -> 회원 아바타 순 적용
-                  const msgAvatar = (m as { avatarData?: string }).avatarData || currentAvatarMap[m.authorId] || authorMember?.avatarRef;
+                  const msgAvatar = (m as { avatarData?: string }).avatarData;
 
                   return (
                     <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
@@ -423,7 +421,6 @@ export default function RpPage() {
 
               {sel.status === 'ongoing' && (
                 <div className="rp-input">
-                  {/* 클릭하여 이미지 선택 및 크롭/설정 */}
                   <div
                     className="char-pick"
                     style={{
@@ -473,6 +470,79 @@ export default function RpPage() {
           </div>
         </div>
       </div>
+
+      {/* 이미지 크롭 / 확대 모달 */}
+      <Modal
+        open={cropModalOpen}
+        onClose={() => setCropModalOpen(false)}
+        small
+        title="인장 편집 (위치 및 확대 설정)"
+        actions={
+          <>
+            <button className="btn btn-ghost" onClick={() => setCropModalOpen(false)}>CANCEL</button>
+            <button className="btn btn-dark" onClick={applyCroppedImage}>APPLY</button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          {/* 동그란 인장 미리보기 영역 */}
+          <div
+            style={{
+              width: 180,
+              height: 180,
+              borderRadius: '50%',
+              overflow: 'hidden',
+              position: 'relative',
+              backgroundColor: '#181a1d',
+              boxShadow: '0 0 0 3px var(--accent, #e2e5e9)',
+              cursor: 'grab',
+              userSelect: 'none',
+            }}
+            onMouseDown={(e) => {
+              setIsDragging(true);
+              setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+            }}
+            onMouseMove={(e) => {
+              if (!isDragging) return;
+              setOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+            }}
+            onMouseUp={() => setIsDragging(false)}
+            onMouseLeave={() => setIsDragging(false)}
+          >
+            {rawImageSrc && (
+              <img
+                src={rawImageSrc}
+                alt="preview"
+                draggable={false}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
+                  transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+                }}
+              />
+            )}
+          </div>
+
+          <p className="hint" style={{ margin: 0, fontSize: 11 }}>마우스로 드래그하여 위치를 조절하세요</p>
+
+          {/* 확대/축소 슬라이더 */}
+          <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 11, color: 'var(--sub)' }}>ZOOM</span>
+            <input
+              type="range"
+              min="1"
+              max="3"
+              step="0.05"
+              value={zoom}
+              onChange={(e) => setZoom(parseFloat(e.target.value))}
+              style={{ flex: 1, accentColor: '#181a1d' }}
+            />
+            <span style={{ fontSize: 11, fontWeight: 'bold', width: 32 }}>{Math.round(zoom * 100)}%</span>
+          </div>
+        </div>
+      </Modal>
 
       <Modal open={newOpen} onClose={() => setNewOpen(false)} small title="역극 방 개설"
         desc="비참여자에게는 방의 존재가 보이지 않습니다" dirty
