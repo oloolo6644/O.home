@@ -362,7 +362,7 @@ ${rows}
                   const mine = m.authorId === user.id;
                   if (m.kind === 'desc') {
                     return (
-                      <div key={m.id} className="msg-desc">
+                      <div key={m.id} className="msg-desc font-serif">
                         {renderFormattedText(m.text)}
                         {mine && (
                           <span className="m-act">
@@ -384,7 +384,7 @@ ${rows}
                       <Face ch={ch} className="face" />
                       <div>
                         <div className="who">{name}</div>
-                        <div className="bub">{renderFormattedText(m.text)}</div>
+                        <div className="bub font-serif">{renderFormattedText(m.text)}</div>
                         <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
                       </div>
                       {mine && (
