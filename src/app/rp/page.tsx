@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 발화자 인장 크롭/확대 편집 및 전송 연동
+// 역극 (4.9) — 실시간 채팅형. 발화자 인장 구역 지정 크롭 & 최근 인장 3개 저장 목록 연동
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -20,16 +20,19 @@ function AvatarDisplay({
   nickname,
   bgColor = '#3a3d44',
   size = 36,
+  onClick,
 }: {
   avatarData?: string;
   nickname?: string;
   bgColor?: string;
   size?: number;
+  onClick?: () => void;
 }) {
   if (avatarData) {
     return (
       <div
         className="face"
+        onClick={onClick}
         style={{
           width: size,
           height: size,
@@ -37,6 +40,7 @@ function AvatarDisplay({
           overflow: 'hidden',
           flexShrink: 0,
           position: 'relative',
+          cursor: onClick ? 'pointer' : 'default',
         }}
       >
         <img
@@ -51,6 +55,7 @@ function AvatarDisplay({
   return (
     <div
       className="face ph"
+      onClick={onClick}
       style={{
         width: size,
         height: size,
@@ -63,6 +68,7 @@ function AvatarDisplay({
         fontWeight: 'bold',
         flexShrink: 0,
         boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        cursor: onClick ? 'pointer' : 'default',
       }}
     >
       {nickname ? nickname[0] : '?'}
@@ -106,6 +112,9 @@ export default function RpPage() {
   const [customAvatar, setCustomAvatar] = useLocalList<string>('ohome.rp.custom_avatar', []);
   const currentAvatar = customAvatar[0] || '';
 
+  // 최근 사용한 인장 목록 (최대 3개 저장)
+  const [recentAvatars, setRecentAvatars] = useLocalList<string>('ohome.rp.recent_avatars', []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 이미지 크롭/확대 모달 상태
@@ -134,17 +143,17 @@ export default function RpPage() {
       }
     };
     reader.readAsDataURL(file);
-    e.target.value = ''; // 동일 파일 재선택 가능하게 리셋
+    e.target.value = '';
   };
 
-  // 확대 및 오프셋 적용하여 캔버스로 크롭 이미지 생성
+  // 구역 지정 크롭 이미지 적용
   const applyCroppedImage = () => {
     if (!rawImageSrc) return;
     const img = new Image();
     img.src = rawImageSrc;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const size = 300; // 결과 이미지 크기 (픽셀)
+      const size = 300; // 결과 이미지 해상도
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');
@@ -153,7 +162,6 @@ export default function RpPage() {
       ctx.fillStyle = '#181a1d';
       ctx.fillRect(0, 0, size, size);
 
-      // 캔버스 중앙 기준 드로잉
       const aspect = img.width / img.height;
       let drawW = size * zoom;
       let drawH = (size / aspect) * zoom;
@@ -167,10 +175,25 @@ export default function RpPage() {
 
       ctx.drawImage(img, drawX, drawY, drawW, drawH);
       const croppedBase64 = canvas.toDataURL('image/jpeg', 0.88);
+
+      // 현재 사용 인장으로 지정
       setCustomAvatar([croppedBase64]);
+
+      // 최근 인장 목록 갱신 (중복 제거 후 상위 3개 유효 저장)
+      const updatedList = [croppedBase64, ...recentAvatars.filter(item => item !== croppedBase64)].slice(0, 3);
+      setRecentAvatars(updatedList);
+
       setCropModalOpen(false);
       toast('프로필 인장이 적용되었습니다');
     };
+  };
+
+  // 최근 사용한 인장 클릭하여 선택
+  const selectRecentAvatar = (imgData: string) => {
+    setCustomAvatar([imgData]);
+    const updatedList = [imgData, ...recentAvatars.filter(item => item !== imgData)].slice(0, 3);
+    setRecentAvatars(updatedList);
+    toast('인장이 변경되었습니다');
   };
 
   const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
@@ -420,28 +443,72 @@ export default function RpPage() {
               </div>
 
               {sel.status === 'ongoing' && (
-                <div className="rp-input">
+                <div className="rp-input" style={{ position: 'relative' }}>
+                  {/* 발화자 인장 선택 및 최근 3개 선택 박스 */}
                   <div
-                    className="char-pick"
                     style={{
-                      cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      gap: 2,
+                      gap: 4,
                     }}
-                    onClick={() => fileInputRef.current?.click()}
-                    title="클릭하여 프로필 사진 변경"
                   >
-                    <AvatarDisplay
-                      avatarData={currentAvatar}
-                      nickname={myMemberInfo?.nickname}
-                      size={32}
-                    />
-                    <small style={{ fontWeight: 600, fontSize: 10 }}>
-                      {myMemberInfo?.nickname ?? '나'}
-                    </small>
+                    <div
+                      className="char-pick"
+                      style={{
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2,
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                      title="클릭하여 새 프로필 사진 지정"
+                    >
+                      <AvatarDisplay
+                        avatarData={currentAvatar}
+                        nickname={myMemberInfo?.nickname}
+                        size={32}
+                      />
+                      <small style={{ fontWeight: 600, fontSize: 10 }}>
+                        {myMemberInfo?.nickname ?? '나'}
+                      </small>
+                    </div>
+
+                    {/* 최근 3개 인장 선택 스위처 */}
+                    {recentAvatars.length > 0 && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 4,
+                          padding: '2px 4px',
+                          backgroundColor: 'rgba(255,255,255,0.05)',
+                          borderRadius: 12,
+                        }}
+                      >
+                        {recentAvatars.map((imgData, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => selectRecentAvatar(imgData)}
+                            title={`최근 인장 ${idx + 1}`}
+                            style={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: '50%',
+                              overflow: 'hidden',
+                              cursor: 'pointer',
+                              border: currentAvatar === imgData ? '2px solid var(--accent, #ffffff)' : '1px solid rgba(255,255,255,0.2)',
+                              opacity: currentAvatar === imgData ? 1 : 0.6,
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <img src={imgData} alt="recent" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
                   <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
                     onFocus={() => setMFocus(true)}
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
@@ -471,12 +538,12 @@ export default function RpPage() {
         </div>
       </div>
 
-      {/* 이미지 크롭 / 확대 모달 */}
+      {/* 이미지 드래그 구역 지정 & 크롭 모달 */}
       <Modal
         open={cropModalOpen}
         onClose={() => setCropModalOpen(false)}
         small
-        title="인장 편집 (위치 및 확대 설정)"
+        title="인장 구역 지정 및 확대 설정"
         actions={
           <>
             <button className="btn btn-ghost" onClick={() => setCropModalOpen(false)}>CANCEL</button>
@@ -485,16 +552,16 @@ export default function RpPage() {
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          {/* 동그란 인장 미리보기 영역 */}
+          {/* 사각 크롭 영역 가이드 포함 박스 */}
           <div
             style={{
-              width: 180,
-              height: 180,
-              borderRadius: '50%',
+              width: 200,
+              height: 200,
+              borderRadius: 8,
               overflow: 'hidden',
               position: 'relative',
               backgroundColor: '#181a1d',
-              boxShadow: '0 0 0 3px var(--accent, #e2e5e9)',
+              boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.2)',
               cursor: 'grab',
               userSelect: 'none',
             }}
@@ -509,6 +576,23 @@ export default function RpPage() {
             onMouseUp={() => setIsDragging(false)}
             onMouseLeave={() => setIsDragging(false)}
           >
+            {/* 사각 크롭 가이드 프레임 */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                width: 160,
+                height: 160,
+                transform: 'translate(-50%, -50%)',
+                borderRadius: '50%',
+                border: '2px dashed rgba(255,255,255,0.8)',
+                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.55)',
+                pointerEvents: 'none',
+                zIndex: 2,
+              }}
+            />
+
             {rawImageSrc && (
               <img
                 src={rawImageSrc}
@@ -525,7 +609,9 @@ export default function RpPage() {
             )}
           </div>
 
-          <p className="hint" style={{ margin: 0, fontSize: 11 }}>마우스로 드래그하여 위치를 조절하세요</p>
+          <p className="hint" style={{ margin: 0, fontSize: 11 }}>
+            이미지를 드래그하여 원 안의 구역을 맞추세요
+          </p>
 
           {/* 확대/축소 슬라이더 */}
           <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -541,6 +627,35 @@ export default function RpPage() {
             />
             <span style={{ fontSize: 11, fontWeight: 'bold', width: 32 }}>{Math.round(zoom * 100)}%</span>
           </div>
+
+          {/* 저장된 최근 인장 3개 목록 미리보기 */}
+          {recentAvatars.length > 0 && (
+            <div style={{ width: '100%', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 10 }}>
+              <div style={{ fontSize: 11, color: 'var(--sub)', marginBottom: 6 }}>최근 사용한 인장 (최대 3개)</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {recentAvatars.map((imgData, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => {
+                      setCustomAvatar([imgData]);
+                      setCropModalOpen(false);
+                      toast('최근 인장으로 변경되었습니다');
+                    }}
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      cursor: 'pointer',
+                      border: '2px solid rgba(255,255,255,0.3)',
+                    }}
+                  >
+                    <img src={imgData} alt="recent" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 
