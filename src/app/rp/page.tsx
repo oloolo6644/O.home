@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 내 말풍선 텍스트 좌측 정렬 & 모바일 말풍선 너비 확장
+// 역극 (4.9) — 실시간 채팅형. 모바일 말풍선 너비 가독성 극대화 (88% 확장)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -126,7 +126,6 @@ export default function RpPage() {
 
   const VIEW_SIZE = 220; // 원형 미리보기 크기 (px)
 
-  // 이미지 선택 시 원본 크기 측정
   const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -480,16 +479,16 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      <div style={{ maxWidth: '85%' }}>
+                      {/* 말풍선 컨테이너 너비를 88%까지 시원하게 확장하여 적용 */}
+                      <div style={{ maxWidth: '88%', width: 'fit-content' }}>
                         <div className="who">{nickname}</div>
-                        {/* 내 메시지 여부 상관없이 말풍선 내부 텍스트는 무조건 왼쪽 정렬 */}
                         <div
                           className="bub"
                           style={{
                             textAlign: 'left',
                             wordBreak: 'break-word',
                             maxWidth: '100%',
-                            display: 'inline-block',
+                            boxSizing: 'border-box',
                           }}
                         >
                           {renderFormattedText(m.text)}
@@ -514,7 +513,6 @@ export default function RpPage() {
 
               {sel.status === 'ongoing' && (
                 <div className="rp-input" style={{ width: '100%', boxSizing: 'border-box' }}>
-                  {/* 발화자 인장 클릭 시 모달 오픈 */}
                   <div
                     className="char-pick"
                     style={{
@@ -537,7 +535,6 @@ export default function RpPage() {
                     </small>
                   </div>
 
-                  {/* 엔터 누르면 자동 전송되지 않고 줄바꿈되도록 처리 */}
                   <KTextarea
                     style={{ minHeight: 44, flex: 1 }}
                     value={text}
