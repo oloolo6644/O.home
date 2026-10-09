@@ -15,17 +15,44 @@ import { useToast } from '@/components/ui/Toast';
 import { useMembers, Member } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 회원 프로필 얼굴 아바타 */
-function MemberFace({ mb, style }: { mb?: Member; style?: React.CSSProperties }) {
-  if (mb?.avatarRef) {
+/** 회원 프로필 얼굴 아바타 (아바타 이미지 및 자라기/플레이스홀더 완벽 대응) */
+function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
+  const avatar = mb?.avatarRef || (mb as unknown as { avatarUrl?: string })?.avatarUrl || (mb as unknown as { avatar?: string })?.avatar;
+  
+  if (avatar) {
     return (
-      <div className="face" style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, ...style }}>
-        <CroppedBlobImg fileRef={mb.avatarRef} crop={mb.avatarCrop} />
+      <div
+        className="face"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          flexShrink: 0,
+          position: 'relative',
+        }}
+      >
+        <CroppedBlobImg fileRef={avatar} crop={mb?.avatarCrop} />
       </div>
     );
   }
+
   return (
-    <div className="face ph" style={{ width: 36, height: 36, borderRadius: '50%', display: 'grid', placeItems: 'center', backgroundColor: '#3a3d44', color: '#fff', fontSize: 13, fontWeight: 'bold', flexShrink: 0, ...style }}>
+    <div
+      className="face ph"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        display: 'grid',
+        placeItems: 'center',
+        backgroundColor: '#3a3d44',
+        color: '#ffffff',
+        fontSize: size * 0.4,
+        fontWeight: 'bold',
+        flexShrink: 0,
+      }}
+    >
       {mb?.nickname ? mb.nickname[0] : '?'}
     </div>
   );
@@ -276,7 +303,7 @@ export default function RpPage() {
 
                   return (
                     <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
-                      <MemberFace mb={authorMember} />
+                      <MemberFace mb={authorMember} size={36} />
                       <div>
                         <div className="who">{nickname}</div>
                         <div className="bub">{renderFormattedText(m.text)}</div>
@@ -299,8 +326,8 @@ export default function RpPage() {
               {sel.status === 'ongoing' && (
                 <div className="rp-input">
                   {/* 발화자 표시 — 현재 로그인된 회원 닉네임과 아바타 */}
-                  <div className="char-pick" style={{ cursor: 'default', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <MemberFace mb={myMemberInfo} style={{ width: 28, height: 28, fontSize: 11 }} />
+                  <div className="char-pick" style={{ cursor: 'default', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <MemberFace mb={myMemberInfo} size={28} />
                     <small style={{ fontWeight: 600 }}>{myMemberInfo?.nickname ?? '나'}</small>
                   </div>
                   <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
