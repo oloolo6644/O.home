@@ -53,13 +53,13 @@ export default function RpPage() {
   const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
   const msgsOf = (r: RpRoom) => messagesFor(msgRows, r.id, r.messages);
-  
+
   const [selId, setSelId] = useState<string | null>(null);
   const [fStatus, setFStatus] = useState<'all' | 'ongoing' | 'done'>('ongoing');
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
 
-  const memberIdsOf = (r: RpRoom) => r.memberIds ?? [r.createdBy];
+  const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
 
   const allMine = useMemo(() => (user
     ? rooms.filter(r => memberIdsOf(r).includes(user.id))
