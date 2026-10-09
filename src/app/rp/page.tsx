@@ -15,8 +15,9 @@ import { useToast } from '@/components/ui/Toast';
 import { useMembers, Member } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 회원 프로필 얼굴 아바타 (아바타 이미지 및 자라기/플레이스홀더 완벽 대응) */
+/** 회원 프로필 얼굴 아바타 (사진이 없을 땐 지정 색상 + 동그란 초성 아바타) */
 function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
+  // 프로필 사진이 업로드되어 있는 경우
   const avatar = mb?.avatarRef || (mb as unknown as { avatarUrl?: string })?.avatarUrl || (mb as unknown as { avatar?: string })?.avatar;
   
   if (avatar) {
@@ -37,6 +38,11 @@ function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
     );
   }
 
+  // 프로필 사진이 없을 경우: 회원이 지정한 기본 프로필 색상(color / bgColor) 적용
+  const bgColor = (mb as unknown as { color?: string; bgColor?: string })?.color 
+               || (mb as unknown as { color?: string; bgColor?: string })?.bgColor 
+               || '#3a3d44';
+
   return (
     <div
       className="face ph"
@@ -46,11 +52,12 @@ function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
         borderRadius: '50%',
         display: 'grid',
         placeItems: 'center',
-        backgroundColor: '#3a3d44',
+        backgroundColor: bgColor,
         color: '#ffffff',
-        fontSize: size * 0.4,
+        fontSize: size * 0.45,
         fontWeight: 'bold',
         flexShrink: 0,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
       }}
     >
       {mb?.nickname ? mb.nickname[0] : '?'}
