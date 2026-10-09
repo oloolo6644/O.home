@@ -68,7 +68,7 @@ export function TopBar() {
     window.addEventListener('storage', load); // 다른 탭
     return () => { window.removeEventListener(NOTIF_EVENT, load); window.removeEventListener('storage', load); };
   }, []);
-  /* 서버에 쌓인 내 알림 받아 오기 (v2.0 포크 제보 — 기기 보관이라 남이 남긴 알림이 안 않았다).
+  /* 서버에 쌓인 내 알림 받아 오기 (v2.0 포크 제보 — 기기 보관이라 남이 남긴 알림이 안 왔다).
       접속할 때 한 번 + 실시간 신호(새 행) + 창에 돌아올 때(30초 간격 제한은 syncNotifs가 건다) */
   useEffect(() => {
     if (!user) return;
