@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { ThemeProvider } from '@/lib/ThemeProvider';
 import { AuthProvider } from '@/lib/auth';
@@ -51,6 +52,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <head>
+        {/* OneSignal 푸시 알림 스크립트 */}
+        <Script
+          src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js"
+          strategy="afterInteractive"
+        />
+        <Script id="onesignal-init" strategy="afterInteractive">
+          {`
+            window.OneSignalDeferred = window.OneSignalDeferred || [];
+            OneSignalDeferred.push(async function(OneSignal) {
+              await OneSignal.init({
+                appId: "65c2ac45-b936-4477-a4f5-113edd9c9e52",
+              });
+            });
+          `}
+        </Script>
+
         {/* 웨일·크롬의 「웹 콘텐츠 다크 모드」(강제 어둡게)가 페이지를 다시 칠하지 않게 (v2.0 사용자 제보).
             CSS의 color-scheme과 같은 선언인데, 스타일 로드 전 첫 페인트부터 적용되도록 메타로도 둔다 */}
         <meta name="color-scheme" content="only light" />
