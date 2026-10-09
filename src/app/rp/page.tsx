@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 발화자 개별 인장(프로필) 업로드 및 전송 연동
+// 역극 (4.9) — 실시간 채팅형. 크롭 편집기 지원 및 기기 간 회원 프로필 사진 동기화
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -9,12 +9,13 @@ import {
 } from '@/lib/rpStore';
 import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput, KTextarea, KCheck } from '@/components/ui/Kit';
+import { CropEditorModal } from '@/components/ui/CropEditor';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
-import { useMembers } from '@/lib/members';
+import { useMembers, Member } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 발화자 아바타 (커스텀 업로드 이미지 or 동그란 초성 아바타) */
+/** 발화자 아바타 (커스텀 이미지, Blob/Data URL or 동그란 초성 아바타) */
 function AvatarDisplay({
   avatarData,
   nickname,
@@ -92,7 +93,8 @@ export default function RpPage() {
   const { user, isAdmin } = useAuth();
   const toast = useToast();
   const del = useConfirmDelete();
-  const pool = useMembers(); // 전체 회원 정보
+  const [members, setMembers] = useLocalList<Member>('ohome.members.v1', []); // 전체 회원 리스트 (동기화용)
+  const pool = useMembers(); 
   const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
   const msgsOf = (r: RpRoom) => messagesFor(msgRows, r.id, r.messages);
@@ -102,28 +104,48 @@ export default function RpPage() {
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
 
-  // 로컬에 저장되는 현재 선택된 커스텀 프사 (Base64)
-  const [customAvatar, setCustomAvatar] = useLocalList<string>('ohome.rp.custom_avatar', []);
-  const currentAvatar = customAvatar[0] || '';
+  // 현재 로그인 회원 정보
+  const myMemberInfo = useMemo(() => {
+    return pool.find(p => p.id === user?.id) || members.find(p => p.id === user?.id);
+  }, [pool, members, user?.id]);
 
+  // 회원 프로필 데이터 또는 로컬 커스텀 아바타
+  const currentAvatar = myMemberInfo?.avatarRef || (myMemberInfo as Record<string, unknown> | undefined)?.avatarUrl as string || '';
+
+  // 이미지 크롭 관련 상태
+  const [cropRawUrl, setCropRawUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast('이미지 크기는 2MB 이하로 선택해 주세요');
+    if (file.size > 5 * 1024 * 1024) {
+      toast('이미지 크기는 5MB 이하로 선택해 주세요');
       return;
     }
     const reader = new FileReader();
     reader.onload = (evt) => {
       const res = evt.target?.result as string;
       if (res) {
-        setCustomAvatar([res]);
-        toast('프로필 사진이 적용되었습니다');
+        setCropRawUrl(res); // 크롭 편집 모달 열기
       }
     };
     reader.readAsDataURL(file);
+    e.target.value = ''; // 동일 파일 재선택 허용
+  };
+
+  // 크롭 편집 완료 후 동기화 저장
+  const handleCropSave = (croppedDataUrl: string) => {
+    setCropRawUrl(null);
+    if (!user) return;
+
+    // 회원의 avatarRef 정보 갱신하여 기기 간 동기화
+    if (members.some(m => m.id === user.id)) {
+      setMembers(members.map(m => m.id === user.id ? { ...m, avatarRef: croppedDataUrl } : m));
+    } else {
+      setMembers([...members, { id: user.id, nickname: user.id, avatarRef: croppedDataUrl } as Member]);
+    }
+    toast('프로필 사진이 변경되었습니다 (기기 간 동기화 적용)');
   };
 
   const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
@@ -158,7 +180,7 @@ export default function RpPage() {
     if (t.startsWith('/desc ')) { kind = 'desc'; t = t.slice(6).trim(); }
     if (!t) return;
     
-    // 커스텀 프사 데이터를 메시지 객체에 포함하여 저장
+    // 현재 회원의 아바타 데이터를 메시지에 저장
     const m: RpMessage & { avatarData?: string } = {
       id: newId(),
       kind,
@@ -207,10 +229,10 @@ export default function RpPage() {
   const createRoom = () => {
     if (!user) return;
     if (!nTitle.trim()) { toast('방 제목을 입력해 주세요'); return; }
-    const members = Array.from(new Set([user.id, ...nMembers]));
+    const membersList = Array.from(new Set([user.id, ...nMembers]));
     const room: RpRoom = {
       id: newId(), title: nTitle.trim(),
-      memberIds: members, status: 'ongoing', isPublic: false,
+      memberIds: membersList, status: 'ongoing', isPublic: false,
       createdBy: user.id, created: new Date().toISOString(), lastRead: {}, messages: [],
     };
     setRooms([room, ...rooms]);
@@ -236,9 +258,6 @@ export default function RpPage() {
     }, `대화 ${count}개도 함께 삭제됩니다.`);
   };
 
-  // 현재 로그인한 사용자 정보
-  const myMemberInfo = pool.find(p => p.id === user?.id);
-
   if (!loaded) return <section className="page" />;
 
   if (!user) {
@@ -261,8 +280,19 @@ export default function RpPage() {
         ref={fileInputRef}
         accept="image/*"
         style={{ display: 'none' }}
-        onChange={handleAvatarChange}
+        onChange={handleAvatarFileSelect}
       />
+
+      {/* 이미지 확대 및 자르기(Crop) 모달 */}
+      {cropRawUrl && (
+        <CropEditorModal
+          open={!!cropRawUrl}
+          rawUrl={cropRawUrl}
+          aspect={1}
+          onClose={() => setCropRawUrl(null)}
+          onSave={handleCropSave}
+        />
+      )}
 
       <div className="page-head">
         <PageTitle>ROLEPLAY</PageTitle>
@@ -345,9 +375,11 @@ export default function RpPage() {
                   }
 
                   // 해당 메시지를 쓴 회원(Member) 정보 조회
-                  const authorMember = pool.find(p => p.id === m.authorId);
+                  const authorMember = pool.find(p => p.id === m.authorId) || members.find(p => p.id === m.authorId);
                   const nickname = authorMember?.nickname ?? '회원';
-                  const msgAvatar = (m as { avatarData?: string }).avatarData;
+                  
+                  // 메시지에 동시 저장된 프로필이 있으면 우선 표시, 없으면 회원 최신 프로필 표시
+                  const msgAvatar = (m as { avatarData?: string }).avatarData || authorMember?.avatarRef;
 
                   return (
                     <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
@@ -377,7 +409,7 @@ export default function RpPage() {
 
               {sel.status === 'ongoing' && (
                 <div className="rp-input">
-                  {/* 클릭하여 프사 선택 및 변경 */}
+                  {/* 클릭하면 이미지 자르기/확대 창 오픈 */}
                   <div
                     className="char-pick"
                     style={{
@@ -388,7 +420,7 @@ export default function RpPage() {
                       gap: 2,
                     }}
                     onClick={() => fileInputRef.current?.click()}
-                    title="클릭하여 프로필 사진 변경"
+                    title="클릭하여 프로필 사진 크롭/변경"
                   >
                     <AvatarDisplay
                       avatarData={currentAvatar}
