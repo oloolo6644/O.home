@@ -15,12 +15,27 @@ import { useToast } from '@/components/ui/Toast';
 import { useMembers, Member } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 회원 프로필 얼굴 아바타 (사진이 없을 땐 지정 색상 + 동그란 초성 아바타) */
+/** 회원 프로필 얼굴 아바타 (URL, Blob, CroppedBlobImg, 프로필 색상 대응) */
 function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
-  // 프로필 사진이 업로드되어 있는 경우
-  const avatar = mb?.avatarRef || (mb as unknown as { avatarUrl?: string })?.avatarUrl || (mb as unknown as { avatar?: string })?.avatar;
-  
-  if (avatar) {
+  // 프로필 이미지 참조 키 또는 URL 형태 모두 탐색
+  const anyMb = mb as Record<string, unknown> | undefined;
+  const avatarSrc = (
+    mb?.avatarRef ||
+    anyMb?.avatarUrl ||
+    anyMb?.avatar ||
+    anyMb?.photoURL ||
+    anyMb?.thumb
+  ) as string | undefined;
+
+  const bgColor = (anyMb?.color || anyMb?.bgColor || '#3a3d44') as string;
+
+  if (avatarSrc) {
+    // http, data:image, blob: 으로 시작하면 일반 img 태그로 직접 렌더링
+    const isDirectUrl =
+      avatarSrc.startsWith('http') ||
+      avatarSrc.startsWith('data:') ||
+      avatarSrc.startsWith('blob:');
+
     return (
       <div
         className="face"
@@ -31,18 +46,23 @@ function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
           overflow: 'hidden',
           flexShrink: 0,
           position: 'relative',
+          backgroundColor: bgColor,
         }}
       >
-        <CroppedBlobImg fileRef={avatar} crop={mb?.avatarCrop} />
+        {isDirectUrl ? (
+          <img
+            src={avatarSrc}
+            alt={mb?.nickname ?? 'avatar'}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <CroppedBlobImg fileRef={avatarSrc} crop={mb?.avatarCrop} />
+        )}
       </div>
     );
   }
 
-  // 프로필 사진이 없을 경우: 회원이 지정한 기본 프로필 색상(color / bgColor) 적용
-  const bgColor = (mb as unknown as { color?: string; bgColor?: string })?.color 
-               || (mb as unknown as { color?: string; bgColor?: string })?.bgColor 
-               || '#3a3d44';
-
+  // 프로필 사진이 없을 경우: 회원이 지정한 기본 프로필 색상 + 동그란 초성 아바타
   return (
     <div
       className="face ph"
