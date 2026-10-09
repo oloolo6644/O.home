@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 내 말풍선 레이아웃 유지 + 말풍선 내 텍스트 좌측 정렬 + 줄바꿈 엔터
+// 역극 (4.9) — 실시간 채팅형. 내 말풍선 텍스트 좌측 정렬 & 모바일 말풍선 너비 확장
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -158,7 +158,6 @@ export default function RpPage() {
     setRawImageSrc('');
   };
 
-  // 가로/세로 이미지에 맞춘 기본 렌더링 물리 크기 계산 (Cover 기준)
   const getRenderBaseSize = () => {
     if (!imgNaturalSize.w || !imgNaturalSize.h) return { w: VIEW_SIZE, h: VIEW_SIZE };
     const aspect = imgNaturalSize.w / imgNaturalSize.h;
@@ -169,7 +168,6 @@ export default function RpPage() {
     }
   };
 
-  // 여백이 발생하지 않도록 드래그 이동 한계(Clamping) 제한
   const clampOffset = (newX: number, newY: number, currentZoom: number) => {
     const base = getRenderBaseSize();
     const currentW = base.w * currentZoom;
@@ -482,10 +480,18 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      <div>
+                      <div style={{ maxWidth: '85%' }}>
                         <div className="who">{nickname}</div>
-                        {/* 말풍선 내부 텍스트를 무조건 왼쪽 정렬(text-align: left) 적용 */}
-                        <div className="bub" style={{ textAlign: 'left' }}>
+                        {/* 내 메시지 여부 상관없이 말풍선 내부 텍스트는 무조건 왼쪽 정렬 */}
+                        <div
+                          className="bub"
+                          style={{
+                            textAlign: 'left',
+                            wordBreak: 'break-word',
+                            maxWidth: '100%',
+                            display: 'inline-block',
+                          }}
+                        >
                           {renderFormattedText(m.text)}
                         </div>
                         <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>
