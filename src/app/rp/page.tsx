@@ -146,34 +146,32 @@ export default function RpPage() {
     e.target.value = '';
   };
 
-  // 정확한 원 영역 크롭 적용
+  // 모달을 새로 열 때 이전 선택 이미지 초기화
+  const openAvatarModal = () => {
+    setRawImageSrc('');
+    setCropModalOpen(true);
+  };
+
+  // 정확한 원 영역 크롭 적용 (검은 여백 제로 보장)
   const applyCroppedImage = () => {
     if (!rawImageSrc) return;
     const img = new Image();
     img.src = rawImageSrc;
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const targetSize = 300; // 출력 인장 정방형 크기
+      const targetSize = 300; // 출력 정방형 해상도
       canvas.width = targetSize;
       canvas.height = targetSize;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const viewSize = 220; // 모달 화면 미리보기 박스 크기(px)
+      const viewSize = 220; // 뷰포트 박스 크기(px)
       const scaleFactor = targetSize / viewSize;
 
-      ctx.fillStyle = '#181a1d';
-      ctx.fillRect(0, 0, targetSize, targetSize);
-
-      // 이미지가 커버되도록 기본 스케일 산출
-      const imgRatio = img.width / img.height;
-      let baseW = viewSize;
-      let baseH = viewSize;
-      if (imgRatio > 1) {
-        baseW = viewSize * imgRatio;
-      } else {
-        baseH = viewSize / imgRatio;
-      }
+      // 이미지가 뷰포트를 완전히 커버하는 스케일 비율 계산 (여백 제거 핵심)
+      const scaleToCover = Math.max(viewSize / img.width, viewSize / img.height);
+      const baseW = img.width * scaleToCover;
+      const baseH = img.height * scaleToCover;
 
       const drawW = baseW * zoom * scaleFactor;
       const drawH = baseH * zoom * scaleFactor;
@@ -457,7 +455,7 @@ export default function RpPage() {
                       alignItems: 'center',
                       gap: 2,
                     }}
-                    onClick={() => setCropModalOpen(true)}
+                    onClick={openAvatarModal}
                     title="클릭하여 인장 선택 및 변경"
                   >
                     <AvatarDisplay
@@ -518,7 +516,7 @@ export default function RpPage() {
           {/* 새 이미지 선택 버튼 */}
           <button
             className="btn btn-dark"
-            style={{ width: '100%', height: 36, fontSize: 12 }}
+            style={{ width: '100%', height: 38, fontSize: 12, fontWeight: 'bold' }}
             onClick={() => fileInputRef.current?.click()}
           >
             ＋ 컴퓨터/모바일에서 사진 불러오기
@@ -558,7 +556,7 @@ export default function RpPage() {
             </div>
           )}
 
-          {/* 선택한 사진이 있을 때만 크롭 가이드 표시 */}
+          {/* 파일에서 사진을 새로 불러왔을 경우에만 편집 영역 노출 */}
           {rawImageSrc && (
             <div style={{ width: '100%', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
               <div style={{ fontSize: 11, color: 'var(--sub)' }}>사진 위치 및 확대 조절</div>
@@ -574,6 +572,8 @@ export default function RpPage() {
                   boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.2)',
                   cursor: 'grab',
                   userSelect: 'none',
+                  display: 'grid',
+                  placeItems: 'center',
                 }}
                 onMouseDown={(e) => {
                   setIsDragging(true);
@@ -607,8 +607,10 @@ export default function RpPage() {
                   alt="preview"
                   draggable={false}
                   style={{
-                    width: '100%',
-                    height: '100%',
+                    minWidth: '100%',
+                    minHeight: '100%',
+                    maxWidth: 'none',
+                    maxHeight: 'none',
                     objectFit: 'cover',
                     transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
                     transition: isDragging ? 'none' : 'transform 0.1s ease-out',
