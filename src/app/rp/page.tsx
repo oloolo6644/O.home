@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 회원 프로필/닉네임 발화 형태
+// 역극 (4.9) — 실시간 채팅형. 발화자 개별 인장(프로필) 업로드 및 전송 연동
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -9,33 +9,24 @@ import {
 } from '@/lib/rpStore';
 import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput, KTextarea, KCheck } from '@/components/ui/Kit';
-import { CroppedBlobImg } from '@/components/ui/CropEditor';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
-import { useMembers, Member } from '@/lib/members';
+import { useMembers } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-/** 회원 프로필 얼굴 아바타 (URL, Blob, CroppedBlobImg, 프로필 색상 대응) */
-function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
-  // 프로필 이미지 참조 키 또는 URL 형태 모두 탐색
-  const anyMb = mb as Record<string, unknown> | undefined;
-  const avatarSrc = (
-    mb?.avatarRef ||
-    anyMb?.avatarUrl ||
-    anyMb?.avatar ||
-    anyMb?.photoURL ||
-    anyMb?.thumb
-  ) as string | undefined;
-
-  const bgColor = (anyMb?.color || anyMb?.bgColor || '#3a3d44') as string;
-
-  if (avatarSrc) {
-    // http, data:image, blob: 으로 시작하면 일반 img 태그로 직접 렌더링
-    const isDirectUrl =
-      avatarSrc.startsWith('http') ||
-      avatarSrc.startsWith('data:') ||
-      avatarSrc.startsWith('blob:');
-
+/** 발화자 아바타 (커스텀 업로드 이미지 or 동그란 초성 아바타) */
+function AvatarDisplay({
+  avatarData,
+  nickname,
+  bgColor = '#3a3d44',
+  size = 36,
+}: {
+  avatarData?: string;
+  nickname?: string;
+  bgColor?: string;
+  size?: number;
+}) {
+  if (avatarData) {
     return (
       <div
         className="face"
@@ -46,23 +37,17 @@ function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
           overflow: 'hidden',
           flexShrink: 0,
           position: 'relative',
-          backgroundColor: bgColor,
         }}
       >
-        {isDirectUrl ? (
-          <img
-            src={avatarSrc}
-            alt={mb?.nickname ?? 'avatar'}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        ) : (
-          <CroppedBlobImg fileRef={avatarSrc} crop={mb?.avatarCrop} />
-        )}
+        <img
+          src={avatarData}
+          alt={nickname ?? 'avatar'}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
       </div>
     );
   }
 
-  // 프로필 사진이 없을 경우: 회원이 지정한 기본 프로필 색상 + 동그란 초성 아바타
   return (
     <div
       className="face ph"
@@ -80,7 +65,7 @@ function MemberFace({ mb, size = 36 }: { mb?: Member; size?: number }) {
         boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
       }}
     >
-      {mb?.nickname ? mb.nickname[0] : '?'}
+      {nickname ? nickname[0] : '?'}
     </div>
   );
 }
@@ -117,6 +102,30 @@ export default function RpPage() {
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
 
+  // 로컬에 저장되는 현재 선택된 커스텀 프사 (Base64)
+  const [customAvatar, setCustomAvatar] = useLocalList<string>('ohome.rp.custom_avatar', []);
+  const currentAvatar = customAvatar[0] || '';
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast('이미지 크기는 2MB 이하로 선택해 주세요');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const res = evt.target?.result as string;
+      if (res) {
+        setCustomAvatar([res]);
+        toast('프로필 사진이 적용되었습니다');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const memberIdsOf = (r: RpRoom) => r.memberIds ?? (r.createdBy ? [r.createdBy] : []);
 
   const allMine = useMemo(() => (user
@@ -148,12 +157,15 @@ export default function RpPage() {
     let kind: RpMessage['kind'] = 'char';
     if (t.startsWith('/desc ')) { kind = 'desc'; t = t.slice(6).trim(); }
     if (!t) return;
-    const m: RpMessage = {
+    
+    // 커스텀 프사 데이터를 메시지 객체에 포함하여 저장
+    const m: RpMessage & { avatarData?: string } = {
       id: newId(),
       kind,
       authorId: user.id,
       text: t,
       date: new Date().toISOString(),
+      avatarData: currentAvatar || undefined,
     };
     setMsgRows([...msgRows, { ...m, roomId: sel.id }]);
     rpMarkRead(sel.id, user.id, m.date);
@@ -244,9 +256,17 @@ export default function RpPage() {
 
   return (
     <section className={`page page-rp ${mFocus ? 'rp-focus' : ''}`}>
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleAvatarChange}
+      />
+
       <div className="page-head">
         <PageTitle>ROLEPLAY</PageTitle>
-        <EditableDesc k="rp-desc" def="실시간 채팅형 · 참여자에게만 존재 노출 · 회원 발화" />
+        <EditableDesc k="rp-desc" def="실시간 채팅형 · 참여자에게만 존재 노출 · 프로필 인장 발화" />
       </div>
 
       <div className={`rp-layout ${mListOpen ? 'mopen' : ''}`}>
@@ -327,10 +347,15 @@ export default function RpPage() {
                   // 해당 메시지를 쓴 회원(Member) 정보 조회
                   const authorMember = pool.find(p => p.id === m.authorId);
                   const nickname = authorMember?.nickname ?? '회원';
+                  const msgAvatar = (m as { avatarData?: string }).avatarData;
 
                   return (
                     <div key={m.id} className={`msg ${mine ? 'me' : ''}`}>
-                      <MemberFace mb={authorMember} size={36} />
+                      <AvatarDisplay
+                        avatarData={msgAvatar}
+                        nickname={nickname}
+                        size={36}
+                      />
                       <div>
                         <div className="who">{nickname}</div>
                         <div className="bub">{renderFormattedText(m.text)}</div>
@@ -352,10 +377,27 @@ export default function RpPage() {
 
               {sel.status === 'ongoing' && (
                 <div className="rp-input">
-                  {/* 발화자 표시 — 현재 로그인된 회원 닉네임과 아바타 */}
-                  <div className="char-pick" style={{ cursor: 'default', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <MemberFace mb={myMemberInfo} size={28} />
-                    <small style={{ fontWeight: 600 }}>{myMemberInfo?.nickname ?? '나'}</small>
+                  {/* 클릭하여 프사 선택 및 변경 */}
+                  <div
+                    className="char-pick"
+                    style={{
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 2,
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    title="클릭하여 프로필 사진 변경"
+                  >
+                    <AvatarDisplay
+                      avatarData={currentAvatar}
+                      nickname={myMemberInfo?.nickname}
+                      size={32}
+                    />
+                    <small style={{ fontWeight: 600, fontSize: 10 }}>
+                      {myMemberInfo?.nickname ?? '나'}
+                    </small>
                   </div>
                   <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
                     onFocus={() => setMFocus(true)}
