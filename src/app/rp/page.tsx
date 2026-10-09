@@ -1,6 +1,7 @@
 'use client';
 // 역극 (4.9) — 실시간 채팅형. 방 개설(자관 기반/자유) · 참여자에게만 존재 노출 ·
 // 캐릭터 선택 발화(테마색 말풍선) · 지문(/desc) · 메시지 수정/삭제 · 완결/공개 전환 · HTML 내보내기
+// ※ 실시간 송수신·입력 중 표시·참여자 전원 동의는 Supabase Realtime 연동 시 활성화 (현재 localStorage)
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -29,15 +30,16 @@ const fmtHM = (iso: string) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-/** *지문* -> 회색+기울임, **강조** -> 굵게 파싱하는 헬퍼 함수 */
-const renderFormattedText = (rawText: string) => {
+/** *지문* -> 기울임+회색, **강조** -> 굵게 파싱하는 함수 */
+const renderFormattedText = (rawText: string, isMe: boolean) => {
   if (!rawText) return '';
+  const emColor = isMe ? '#666666' : '#a1a1aa'; // 내 글(연회색 배경)에서는 짙은 회색, 상대 글(어두운 배경)에서는 연회색
   const html = rawText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em style="color: #a1a1aa; font-style: italic;">$1</em>')
+    .replace(/\*(.*?)\*/g, `<em style="color: ${emColor}; font-style: italic;">$1</em>`)
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
@@ -319,7 +321,7 @@ ${rows}
           </div>
         </div>
 
-        {/* 채팅 화면 */}
+        {/* 채팅 */}
         <div className="panel rp-chat">
           {sel ? (
             <>
@@ -363,7 +365,7 @@ ${rows}
                   if (m.kind === 'desc') {
                     return (
                       <div key={m.id} className="msg-desc">
-                        {renderFormattedText(m.text)}
+                        {renderFormattedText(m.text, false)}
                         {mine && (
                           <span className="m-act">
                             <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
@@ -374,17 +376,44 @@ ${rows}
                     );
                   }
                   const ch = rpChars.find(c => c.id === m.charId);
-                  const name = ch?.name ?? '익명';
+                  const name = ch?.name ?? '';
                   const rightSide = ch
                     ? (!!charGrant(ch, user.id) || (!!ch.own && isAdmin))
                     : (!!m.charOwn && isAdmin);
 
                   return (
-                    <div key={m.id} className={`msg ${rightSide ? 'me' : ''}`} style={{ ['--cc' as string]: hexRgb(ch?.color) }}>
+                    <div
+                      key={m.id}
+                      className={`msg ${rightSide ? 'me' : ''}`}
+                      style={{
+                        ['--cc' as string]: hexRgb(ch?.color),
+                        display: 'flex',
+                        flexDirection: rightSide ? 'row-reverse' : 'row',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        marginBottom: 14,
+                        textAlign: rightSide ? 'right' : 'left',
+                      }}
+                    >
                       <Face ch={ch} className="face" />
-                      <div>
-                        <div className="who">{name}</div>
-                        <div className="bub">{renderFormattedText(m.text)}</div>
+                      <div style={{ maxWidth: '80%' }}>
+                        <div className="who" style={{ fontSize: 11, color: '#646973', marginBottom: 4, fontWeight: 600 }}>{name}</div>
+                        <div
+                          className="bub"
+                          style={{
+                            backgroundColor: rightSide ? '#e2e5e9' : '#272a30',
+                            color: rightSide ? '#181a1d' : '#ffffff',
+                            padding: '9px 13px',
+                            borderRadius: rightSide ? '14px 3px 14px 14px' : '3px 14px 14px 14px',
+                            wordBreak: 'break-word',
+                            textAlign: 'left',
+                            fontSize: 13.5,
+                            lineHeight: 1.5,
+                            display: 'inline-block',
+                          }}
+                        >
+                          {renderFormattedText(m.text, rightSide)}
+                        </div>
                         <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
                       </div>
                       {mine && (
