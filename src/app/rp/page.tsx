@@ -29,15 +29,16 @@ const fmtHM = (iso: string) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-/** *지문* -> 회색+기울임, **강조** -> 굵게 파싱하는 헬퍼 함수 */
-const renderFormattedText = (rawText: string) => {
+/** *지문* -> 기울임, **강조** -> 굵게 파싱하는 헬퍼 함수 (내 글/상대 글 색상 구분을 위해 isMe 파라미터 추가) */
+const renderFormattedText = (rawText: string, isMe: boolean) => {
   if (!rawText) return '';
+  const emColor = isMe ? '#666666' : '#a1a1aa'; // 내 글(연한 배경) 지문은 어두운 회색, 상대 글(어두운 배경) 지문은 연한 회색
   const html = rawText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em style="color: #a1a1aa; font-style: italic;">$1</em>')
+    .replace(/\*(.*?)\*/g, `<em style="color: ${emColor}; font-style: italic;">$1</em>`)
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
@@ -363,7 +364,7 @@ ${rows}
                   if (m.kind === 'desc') {
                     return (
                       <div key={m.id} className="msg-desc">
-                        {renderFormattedText(m.text)}
+                        {renderFormattedText(m.text, false)}
                         {mine && (
                           <span className="m-act">
                             <button onClick={() => { setEditMsg(m); setEditText(m.text); }}>EDIT</button>
@@ -380,11 +381,38 @@ ${rows}
                     : (!!m.charOwn && isAdmin);
 
                   return (
-                    <div key={m.id} className={`msg ${rightSide ? 'me' : ''}`} style={{ ['--cc' as string]: hexRgb(ch?.color) }}>
+                    <div
+                      key={m.id}
+                      className={`msg ${rightSide ? 'me' : ''}`}
+                      style={{
+                        ['--cc' as string]: hexRgb(ch?.color),
+                        display: 'flex',
+                        flexDirection: rightSide ? 'row-reverse' : 'row',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        marginBottom: 14,
+                      }}
+                    >
                       <Face ch={ch} className="face" />
-                      <div>
-                        <div className="who">{name}</div>
-                        <div className="bub">{renderFormattedText(m.text)}</div>
+                      <div style={{ textAlign: rightSide ? 'right' : 'left' }}>
+                        <div className="who" style={{ fontSize: 11, color: '#646973', marginBottom: 4, fontWeight: 600 }}>{name}</div>
+                        {/* 말풍선 스타일 인라인 지정: 내 글(연회색 #e2e5e9), 상대 글(다크 #272a30) */}
+                        <div
+                          className="bub"
+                          style={{
+                            backgroundColor: rightSide ? '#e2e5e9' : '#272a30',
+                            color: rightSide ? '#181a1d' : '#ffffff',
+                            padding: '9px 13px',
+                            borderRadius: rightSide ? '14px 3px 14px 14px' : '3px 14px 14px 14px',
+                            maxWidth: 320,
+                            wordBreak: 'break-word',
+                            textAlign: 'left',
+                            fontSize: 13.5,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {renderFormattedText(m.text, rightSide)}
+                        </div>
                         <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
                       </div>
                       {mine && (
