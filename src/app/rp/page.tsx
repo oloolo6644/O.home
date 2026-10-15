@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. --- 구분선 HTML/CSS 파싱 + 입력창 구분선 버튼 추가
+// 역극 (4.9) — 실시간 채팅형. 메시지 수정 모달에도 구분선(---) 버튼 추가
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -116,6 +116,7 @@ export default function RpPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 모달 및 드래그 상태
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -277,13 +278,24 @@ export default function RpPage() {
 
   const [text, setText] = useState('');
 
-  // 구분선(---) 버튼 클릭 시 텍스트 영역에 자동 삽입
+  // 입력창 구분선(---) 삽입
   const insertDivider = () => {
     const dividerText = '\n---\n';
     setText(prev => prev + dividerText);
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
+      }
+    }, 50);
+  };
+
+  // 수정 모달 구분선(---) 삽입
+  const insertEditDivider = () => {
+    const dividerText = '\n---\n';
+    setEditText(prev => prev + dividerText);
+    setTimeout(() => {
+      if (editTextareaRef.current) {
+        editTextareaRef.current.focus();
       }
     }, 50);
   };
@@ -820,12 +832,48 @@ export default function RpPage() {
         </div>
       </Modal>
 
-      <Modal open={editMsg !== null} onClose={() => setEditMsg(null)} small title="메시지 수정" dirty
-        actions={<>
-          <button className="btn btn-ghost" onClick={() => setEditMsg(null)}>CANCEL</button>
-          <button className="btn btn-dark" onClick={() => saveMsg()}>SAVE</button>
-        </>}>
-        <KTextarea style={{ minHeight: 100 }} value={editText} onChange={e => setEditText(e.target.value)} />
+      {/* 메시지 수정 모달 (좌측 하단 구분선 버튼 추가) */}
+      <Modal
+        open={editMsg !== null}
+        onClose={() => setEditMsg(null)}
+        small
+        title="메시지 수정"
+        dirty
+        actions={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+            {/* 좌측 하단 구분선 버튼 */}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={insertEditDivider}
+              title="구분선 삽입 (---)"
+              style={{
+                height: 32,
+                padding: '0 12px',
+                fontSize: 13,
+                fontWeight: 'bold',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              ― 구분선
+            </button>
+
+            {/* 우측 취소/저장 버튼 */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost" onClick={() => setEditMsg(null)}>CANCEL</button>
+              <button className="btn btn-dark" onClick={() => saveMsg()}>SAVE</button>
+            </div>
+          </div>
+        }
+      >
+        <KTextarea
+          ref={editTextareaRef}
+          style={{ minHeight: 180 }}
+          value={editText}
+          onChange={e => setEditText(e.target.value)}
+        />
       </Modal>
 
       <ConfirmModal open={endAsk} title="역극을 완결 처리하시겠습니까?"
