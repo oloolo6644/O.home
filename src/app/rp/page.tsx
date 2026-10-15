@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 내 말풍선 너비를 상대 프로필 직전(75%)으로 조정하여 가독성 최적화
+// 역극 (4.9) — 실시간 채팅형. --- 구분선 HTML/CSS 파싱 + 입력창 구분선 버튼 추가
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -81,7 +81,7 @@ const fmtHM = (iso: string) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-/** *지문* -> 기울임+회색, **강조** -> 굵게 파싱하는 함수 */
+/** *지문* -> 기울임+회색, **강조** -> 굵게, --- -> 구분선 파싱하는 함수 */
 const renderFormattedText = (rawText: string) => {
   if (!rawText) return '';
   const html = rawText
@@ -90,6 +90,7 @@ const renderFormattedText = (rawText: string) => {
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em style="color: #a1a1aa; font-style: italic;">$1</em>')
+    .replace(/^(---|\*\*\*|___)$/gm, '<hr style="border: none; border-top: 1px solid rgba(255,255,255,0.2); margin: 8px 0;" />')
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
@@ -114,6 +115,7 @@ export default function RpPage() {
   const [recentAvatars, setRecentAvatars] = useLocalList<string>('ohome.rp.recent_avatars', []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 모달 및 드래그 상태
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -274,6 +276,18 @@ export default function RpPage() {
   }, [sel?.id, msgRows.length]);
 
   const [text, setText] = useState('');
+
+  // 구분선(---) 버튼 클릭 시 텍스트 영역에 자동 삽입
+  const insertDivider = () => {
+    const dividerText = '\n---\n';
+    setText(prev => prev + dividerText);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 50);
+  };
+
   const send = () => {
     if (!sel || !user) return;
     let t = text.trim();
@@ -489,7 +503,6 @@ export default function RpPage() {
                         nickname={nickname}
                         size={36}
                       />
-                      {/* 상대 프로필/닉네임 위치(75%) 직전까지만 늘어나도록 너비 제한 조율 */}
                       <div
                         style={{
                           maxWidth: '75%',
@@ -562,20 +575,50 @@ export default function RpPage() {
                     </small>
                   </div>
 
-                  {/* 텍스트 작성창 */}
-                  <KTextarea
-                    style={{
-                      minHeight: 44,
-                      maxHeight: 120,
-                      flex: 1,
-                      overflowY: 'auto',
-                      resize: 'none',
-                    }}
-                    value={text}
-                    onChange={e => setText(e.target.value)}
-                    onFocus={() => setMFocus(true)}
-                    onBlur={() => setTimeout(() => setMFocus(false), 180)}
-                  />
+                  {/* 텍스트 입력창 및 구분선 버튼 컨테이너 */}
+                  <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <KTextarea
+                      ref={textareaRef}
+                      style={{
+                        minHeight: 44,
+                        maxHeight: 120,
+                        width: '100%',
+                        overflowY: 'auto',
+                        resize: 'none',
+                        paddingRight: 42,
+                      }}
+                      value={text}
+                      onChange={e => setText(e.target.value)}
+                      onFocus={() => setMFocus(true)}
+                      onBlur={() => setTimeout(() => setMFocus(false), 180)}
+                    />
+
+                    {/* 구분선 삽입 버튼 (입력창 오른쪽 내부 배치) */}
+                    <button
+                      type="button"
+                      onClick={insertDivider}
+                      title="구분선 삽입 (---)"
+                      style={{
+                        position: 'absolute',
+                        right: 8,
+                        bottom: 8,
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        backgroundColor: 'rgba(255,255,255,0.08)',
+                        color: 'var(--sub, #a1a1aa)',
+                        fontSize: 13,
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        display: 'grid',
+                        placeItems: 'center',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      ―
+                    </button>
+                  </div>
 
                   {/* SEND 버튼 */}
                   <button
