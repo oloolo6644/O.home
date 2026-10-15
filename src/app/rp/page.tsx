@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 메시지 수정 모달에도 구분선(---) 버튼 추가
+// 역극 (4.9) — 실시간 채팅형. 구분선 어두운 회색 변경 & 커서 위치 기준 정밀 삽입
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -81,7 +81,7 @@ const fmtHM = (iso: string) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-/** *지문* -> 기울임+회색, **강조** -> 굵게, --- -> 구분선 파싱하는 함수 */
+/** *지문* -> 기울임+회색, **강조** -> 굵게, --- -> 구분선(어두운 회색) 파싱하는 함수 */
 const renderFormattedText = (rawText: string) => {
   if (!rawText) return '';
   const html = rawText
@@ -90,7 +90,7 @@ const renderFormattedText = (rawText: string) => {
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em style="color: #a1a1aa; font-style: italic;">$1</em>')
-    .replace(/^(---|\*\*\*|___)$/gm, '<hr style="border: none; border-top: 1px solid rgba(255,255,255,0.2); margin: 8px 0;" />')
+    .replace(/^(---|\*\*\*|___)$/gm, '<hr style="border: none; border-top: 1.5px solid #666666; margin: 10px 0; opacity: 0.8;" />')
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
@@ -278,25 +278,43 @@ export default function RpPage() {
 
   const [text, setText] = useState('');
 
-  // 입력창 구분선(---) 삽입
-  const insertDivider = () => {
-    const dividerText = '\n---\n';
-    setText(prev => prev + dividerText);
+  // 입력창 현재 커서 위치에 구분선(---) 정밀 삽입
+  const insertDividerAtCursor = () => {
+    const el = textareaRef.current;
+    if (!el) {
+      setText(prev => prev + '\n---\n');
+      return;
+    }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? text.length;
+    const insertText = '\n---\n';
+    const newText = text.substring(0, start) + insertText + text.substring(end);
+    setText(newText);
+
     setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-      }
+      el.focus();
+      const nextPos = start + insertText.length;
+      el.setSelectionRange(nextPos, nextPos);
     }, 50);
   };
 
-  // 수정 모달 구분선(---) 삽입
-  const insertEditDivider = () => {
-    const dividerText = '\n---\n';
-    setEditText(prev => prev + dividerText);
+  // 수정 모달 현재 커서 위치에 구분선(---) 정밀 삽입
+  const insertEditDividerAtCursor = () => {
+    const el = editTextareaRef.current;
+    if (!el) {
+      setEditText(prev => prev + '\n---\n');
+      return;
+    }
+    const start = el.selectionStart ?? editText.length;
+    const end = el.selectionEnd ?? editText.length;
+    const insertText = '\n---\n';
+    const newText = editText.substring(0, start) + insertText + editText.substring(end);
+    setEditText(newText);
+
     setTimeout(() => {
-      if (editTextareaRef.current) {
-        editTextareaRef.current.focus();
-      }
+      el.focus();
+      const nextPos = start + insertText.length;
+      el.setSelectionRange(nextPos, nextPos);
     }, 50);
   };
 
@@ -587,7 +605,7 @@ export default function RpPage() {
                     </small>
                   </div>
 
-                  {/* 텍스트 입력창 및 구분선 버튼 컨테이너 */}
+                  {/* 텍스트 입력창 및 커서 위치 구분선 버튼 */}
                   <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <KTextarea
                       ref={textareaRef}
@@ -605,11 +623,11 @@ export default function RpPage() {
                       onBlur={() => setTimeout(() => setMFocus(false), 180)}
                     />
 
-                    {/* 구분선 삽입 버튼 (입력창 오른쪽 내부 배치) */}
+                    {/* 구분선 삽입 버튼 */}
                     <button
                       type="button"
-                      onClick={insertDivider}
-                      title="구분선 삽입 (---)"
+                      onClick={insertDividerAtCursor}
+                      title="커서 위치에 구분선 삽입 (---)"
                       style={{
                         position: 'absolute',
                         right: 8,
@@ -832,7 +850,7 @@ export default function RpPage() {
         </div>
       </Modal>
 
-      {/* 메시지 수정 모달 (좌측 하단 구분선 버튼 추가) */}
+      {/* 메시지 수정 모달 (커서 위치 구분선 버튼) */}
       <Modal
         open={editMsg !== null}
         onClose={() => setEditMsg(null)}
@@ -841,12 +859,12 @@ export default function RpPage() {
         dirty
         actions={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-            {/* 좌측 하단 구분선 버튼 */}
+            {/* 커서 위치 구분선 삽입 버튼 */}
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={insertEditDivider}
-              title="구분선 삽입 (---)"
+              onClick={insertEditDividerAtCursor}
+              title="커서 위치에 구분선 삽입 (---)"
               style={{
                 height: 32,
                 padding: '0 12px',
