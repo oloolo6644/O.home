@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 구분선 색상을 지문 스타일보다 약간 진한 연회색(#71717a)으로 미감 조정
+// 역극 (4.9) — 실시간 채팅형. 구분선 스타일 은은한 연회색 + 투명도 조절 적용
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -81,7 +81,7 @@ const fmtHM = (iso: string) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-/** *지문* -> 기울임+회색, **강조** -> 굵게, --- -> 구분선(지문보다 살짝 진한 연회색) 파싱하는 함수 */
+/** *지문* -> 기울임+회색, **강조** -> 굵게, --- -> 구분선(지문보다 아주 살짝 진한 연회색+은은한 투명도) 파싱 */
 const renderFormattedText = (rawText: string) => {
   if (!rawText) return '';
   const html = rawText
@@ -90,7 +90,7 @@ const renderFormattedText = (rawText: string) => {
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em style="color: #a1a1aa; font-style: italic;">$1</em>')
-    .replace(/^(---|\*\*\*|___)$/gm, '<hr style="border: none; border-top: 1px solid #71717a; margin: 10px 0; opacity: 0.75;" />')
+    .replace(/^(---|\*\*\*|___)$/gm, '<hr style="border: none; border-top: 1px solid #888888; margin: 8px 0; opacity: 0.45;" />')
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
@@ -870,7 +870,7 @@ export default function RpPage() {
         </div>
       </Modal>
 
-      {/* 메시지 수정 모달 (커서 위치 순수 --- 삽입 버튼) */}
+      {/* 메시지 수정 모달 */}
       <Modal
         open={editMsg !== null}
         onClose={() => setEditMsg(null)}
