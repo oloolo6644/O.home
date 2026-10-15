@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 구분선 어두운 회색 변경 & 커서 위치 기준 정밀 삽입
+// 역극 (4.9) — 실시간 채팅형. document.activeElement로 실제 포커스된 textarea 커서 위치에 정확히 구분선 삽입
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -115,8 +115,8 @@ export default function RpPage() {
   const [recentAvatars, setRecentAvatars] = useLocalList<string>('ohome.rp.recent_avatars', []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
+  const editModalContainerRef = useRef<HTMLDivElement>(null);
 
   // 모달 및 드래그 상태
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -278,44 +278,44 @@ export default function RpPage() {
 
   const [text, setText] = useState('');
 
-  // 입력창 현재 커서 위치에 구분선(---) 정밀 삽입
+  // 메인 입력창 커서 위치에 구분선(---) 삽입
   const insertDividerAtCursor = () => {
-    const el = textareaRef.current;
-    if (!el) {
-      setText(prev => prev + '\n---\n');
-      return;
-    }
-    const start = el.selectionStart ?? text.length;
-    const end = el.selectionEnd ?? text.length;
+    const el = (inputContainerRef.current?.querySelector('textarea') || document.activeElement) as HTMLTextAreaElement | null;
+    const isTextArea = el && el.tagName === 'TEXTAREA';
+    const start = isTextArea && typeof el.selectionStart === 'number' ? el.selectionStart : text.length;
+    const end = isTextArea && typeof el.selectionEnd === 'number' ? el.selectionEnd : text.length;
+    
     const insertText = '\n---\n';
     const newText = text.substring(0, start) + insertText + text.substring(end);
     setText(newText);
 
-    setTimeout(() => {
-      el.focus();
-      const nextPos = start + insertText.length;
-      el.setSelectionRange(nextPos, nextPos);
-    }, 50);
+    if (isTextArea && el) {
+      setTimeout(() => {
+        el.focus();
+        const nextPos = start + insertText.length;
+        el.setSelectionRange(nextPos, nextPos);
+      }, 50);
+    }
   };
 
-  // 수정 모달 현재 커서 위치에 구분선(---) 정밀 삽입
+  // 수정 모달창 커서 위치에 구분선(---) 삽입
   const insertEditDividerAtCursor = () => {
-    const el = editTextareaRef.current;
-    if (!el) {
-      setEditText(prev => prev + '\n---\n');
-      return;
-    }
-    const start = el.selectionStart ?? editText.length;
-    const end = el.selectionEnd ?? editText.length;
+    const el = (editModalContainerRef.current?.querySelector('textarea') || document.activeElement) as HTMLTextAreaElement | null;
+    const isTextArea = el && el.tagName === 'TEXTAREA';
+    const start = isTextArea && typeof el.selectionStart === 'number' ? el.selectionStart : editText.length;
+    const end = isTextArea && typeof el.selectionEnd === 'number' ? el.selectionEnd : editText.length;
+
     const insertText = '\n---\n';
     const newText = editText.substring(0, start) + insertText + editText.substring(end);
     setEditText(newText);
 
-    setTimeout(() => {
-      el.focus();
-      const nextPos = start + insertText.length;
-      el.setSelectionRange(nextPos, nextPos);
-    }, 50);
+    if (isTextArea && el) {
+      setTimeout(() => {
+        el.focus();
+        const nextPos = start + insertText.length;
+        el.setSelectionRange(nextPos, nextPos);
+      }, 50);
+    }
   };
 
   const send = () => {
@@ -605,10 +605,9 @@ export default function RpPage() {
                     </small>
                   </div>
 
-                  {/* 텍스트 입력창 및 커서 위치 구분선 버튼 */}
-                  <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  {/* 텍스트 입력창 및 커서 위치 구분선 버튼 컨테이너 */}
+                  <div ref={inputContainerRef} style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <KTextarea
-                      ref={textareaRef}
                       style={{
                         minHeight: 44,
                         maxHeight: 120,
@@ -626,6 +625,7 @@ export default function RpPage() {
                     {/* 구분선 삽입 버튼 */}
                     <button
                       type="button"
+                      onMouseDown={e => e.preventDefault()}
                       onClick={insertDividerAtCursor}
                       title="커서 위치에 구분선 삽입 (---)"
                       style={{
@@ -850,7 +850,7 @@ export default function RpPage() {
         </div>
       </Modal>
 
-      {/* 메시지 수정 모달 (커서 위치 구분선 버튼) */}
+      {/* 메시지 수정 모달 (커서 위치 정밀 구분선 버튼) */}
       <Modal
         open={editMsg !== null}
         onClose={() => setEditMsg(null)}
@@ -862,6 +862,7 @@ export default function RpPage() {
             {/* 커서 위치 구분선 삽입 버튼 */}
             <button
               type="button"
+              onMouseDown={e => e.preventDefault()}
               className="btn btn-ghost"
               onClick={insertEditDividerAtCursor}
               title="커서 위치에 구분선 삽입 (---)"
@@ -886,12 +887,13 @@ export default function RpPage() {
           </div>
         }
       >
-        <KTextarea
-          ref={editTextareaRef}
-          style={{ minHeight: 180 }}
-          value={editText}
-          onChange={e => setEditText(e.target.value)}
-        />
+        <div ref={editModalContainerRef} style={{ width: '100%' }}>
+          <KTextarea
+            style={{ minHeight: 180 }}
+            value={editText}
+            onChange={e => setEditText(e.target.value)}
+          />
+        </div>
       </Modal>
 
       <ConfirmModal open={endAsk} title="역극을 완결 처리하시겠습니까?"
