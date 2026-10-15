@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. document.activeElement로 실제 포커스된 textarea 커서 위치에 정확히 구분선 삽입
+// 역극 (4.9) — 실시간 채팅형. 커서 위치(selectionStart) 상태 기억 방식으로 정밀 구분선 삽입
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -117,6 +117,10 @@ export default function RpPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const editModalContainerRef = useRef<HTMLDivElement>(null);
+
+  // 입력창 커서 위치 실시간 기억용 상태
+  const [inputCursorPos, setInputCursorPos] = useState<number | null>(null);
+  const [editCursorPos, setEditCursorPos] = useState<number | null>(null);
 
   // 모달 및 드래그 상태
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -278,41 +282,49 @@ export default function RpPage() {
 
   const [text, setText] = useState('');
 
-  // 메인 입력창 커서 위치에 구분선(---) 삽입
+  // 커서 이동 감지
+  const updateInputCursor = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    setInputCursorPos(e.currentTarget.selectionStart);
+  };
+  const updateEditCursor = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    setEditCursorPos(e.currentTarget.selectionStart);
+  };
+
+  // 메인 입력창 커서 위치에 구분선(---) 정밀 삽입
   const insertDividerAtCursor = () => {
-    const el = (inputContainerRef.current?.querySelector('textarea') || document.activeElement) as HTMLTextAreaElement | null;
-    const isTextArea = el && el.tagName === 'TEXTAREA';
-    const start = isTextArea && typeof el.selectionStart === 'number' ? el.selectionStart : text.length;
-    const end = isTextArea && typeof el.selectionEnd === 'number' ? el.selectionEnd : text.length;
-    
+    const el = inputContainerRef.current?.querySelector('textarea');
+    const pos = inputCursorPos ?? text.length;
     const insertText = '\n---\n';
-    const newText = text.substring(0, start) + insertText + text.substring(end);
+    
+    const newText = text.substring(0, pos) + insertText + text.substring(pos);
     setText(newText);
 
-    if (isTextArea && el) {
+    const nextPos = pos + insertText.length;
+    setInputCursorPos(nextPos);
+
+    if (el) {
       setTimeout(() => {
         el.focus();
-        const nextPos = start + insertText.length;
         el.setSelectionRange(nextPos, nextPos);
       }, 50);
     }
   };
 
-  // 수정 모달창 커서 위치에 구분선(---) 삽입
+  // 수정 모달창 커서 위치에 구분선(---) 정밀 삽입
   const insertEditDividerAtCursor = () => {
-    const el = (editModalContainerRef.current?.querySelector('textarea') || document.activeElement) as HTMLTextAreaElement | null;
-    const isTextArea = el && el.tagName === 'TEXTAREA';
-    const start = isTextArea && typeof el.selectionStart === 'number' ? el.selectionStart : editText.length;
-    const end = isTextArea && typeof el.selectionEnd === 'number' ? el.selectionEnd : editText.length;
-
+    const el = editModalContainerRef.current?.querySelector('textarea');
+    const pos = editCursorPos ?? editText.length;
     const insertText = '\n---\n';
-    const newText = editText.substring(0, start) + insertText + editText.substring(end);
+
+    const newText = editText.substring(0, pos) + insertText + editText.substring(pos);
     setEditText(newText);
 
-    if (isTextArea && el) {
+    const nextPos = pos + insertText.length;
+    setEditCursorPos(nextPos);
+
+    if (el) {
       setTimeout(() => {
         el.focus();
-        const nextPos = start + insertText.length;
         el.setSelectionRange(nextPos, nextPos);
       }, 50);
     }
@@ -337,6 +349,7 @@ export default function RpPage() {
     setMsgRows([...msgRows, { ...m, roomId: sel.id }]);
     rpMarkRead(sel.id, user.id, m.date);
     setText('');
+    setInputCursorPos(null);
     memberIdsOf(sel).filter(id => id !== user.id).forEach(id =>
       pushNotif({
         type: 'rp', toUserId: id, href: '/rp', dedupeKey: `rp:${sel.id}`,
@@ -358,6 +371,7 @@ export default function RpPage() {
         ? { ...r, messages: r.messages.map(m => m.id === editMsg.id ? { ...m, text: t } : m) } : r));
     }
     setEditMsg(null);
+    setEditCursorPos(null);
   };
   const removeMsg = (m: RpMessage) => {
     if (!sel) return;
@@ -617,7 +631,13 @@ export default function RpPage() {
                         paddingRight: 42,
                       }}
                       value={text}
-                      onChange={e => setText(e.target.value)}
+                      onChange={e => {
+                        setText(e.target.value);
+                        updateInputCursor(e);
+                      }}
+                      onClick={updateInputCursor}
+                      onKeyUp={updateInputCursor}
+                      onSelect={updateInputCursor}
                       onFocus={() => setMFocus(true)}
                       onBlur={() => setTimeout(() => setMFocus(false), 180)}
                     />
@@ -850,7 +870,7 @@ export default function RpPage() {
         </div>
       </Modal>
 
-      {/* 메시지 수정 모달 (커서 위치 정밀 구분선 버튼) */}
+      {/* 메시지 수정 모달 (커서 위치 기억 기반 정밀 구분선 버튼) */}
       <Modal
         open={editMsg !== null}
         onClose={() => setEditMsg(null)}
@@ -891,7 +911,13 @@ export default function RpPage() {
           <KTextarea
             style={{ minHeight: 180 }}
             value={editText}
-            onChange={e => setEditText(e.target.value)}
+            onChange={e => {
+              setEditText(e.target.value);
+              updateEditCursor(e);
+            }}
+            onClick={updateEditCursor}
+            onKeyUp={updateEditCursor}
+            onSelect={updateEditCursor}
           />
         </div>
       </Modal>
