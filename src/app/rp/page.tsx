@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 커서 위치(selectionStart) 상태 기억 방식으로 정밀 구분선 삽입
+// 역극 (4.9) — 실시간 채팅형. 구분선 버튼 클릭 시 줄바꿈 없이 딱 '---'만 삽입되도록 변경
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -290,11 +290,11 @@ export default function RpPage() {
     setEditCursorPos(e.currentTarget.selectionStart);
   };
 
-  // 메인 입력창 커서 위치에 구분선(---) 정밀 삽입
+  // 메인 입력창 커서 위치에 순수 '---' 만 삽입
   const insertDividerAtCursor = () => {
     const el = inputContainerRef.current?.querySelector('textarea');
     const pos = inputCursorPos ?? text.length;
-    const insertText = '\n---\n';
+    const insertText = '---';
     
     const newText = text.substring(0, pos) + insertText + text.substring(pos);
     setText(newText);
@@ -310,11 +310,11 @@ export default function RpPage() {
     }
   };
 
-  // 수정 모달창 커서 위치에 구분선(---) 정밀 삽입
+  // 수정 모달창 커서 위치에 순수 '---' 만 삽입
   const insertEditDividerAtCursor = () => {
     const el = editModalContainerRef.current?.querySelector('textarea');
     const pos = editCursorPos ?? editText.length;
-    const insertText = '\n---\n';
+    const insertText = '---';
 
     const newText = editText.substring(0, pos) + insertText + editText.substring(pos);
     setEditText(newText);
@@ -647,7 +647,7 @@ export default function RpPage() {
                       type="button"
                       onMouseDown={e => e.preventDefault()}
                       onClick={insertDividerAtCursor}
-                      title="커서 위치에 구분선 삽입 (---)"
+                      title="커서 위치에 구분선(---) 삽입"
                       style={{
                         position: 'absolute',
                         right: 8,
@@ -870,7 +870,7 @@ export default function RpPage() {
         </div>
       </Modal>
 
-      {/* 메시지 수정 모달 (커서 위치 기억 기반 정밀 구분선 버튼) */}
+      {/* 메시지 수정 모달 (커서 위치 순수 --- 삽입 버튼) */}
       <Modal
         open={editMsg !== null}
         onClose={() => setEditMsg(null)}
@@ -885,7 +885,7 @@ export default function RpPage() {
               onMouseDown={e => e.preventDefault()}
               className="btn btn-ghost"
               onClick={insertEditDividerAtCursor}
-              title="커서 위치에 구분선 삽입 (---)"
+              title="커서 위치에 구분선(---) 삽입"
               style={{
                 height: 32,
                 padding: '0 12px',
