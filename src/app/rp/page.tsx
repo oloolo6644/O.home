@@ -1,5 +1,5 @@
 'use client';
-// 역극 (4.9) — 실시간 채팅형. 구분선 버튼 클릭 시 줄바꿈 없이 딱 '---'만 삽입되도록 변경
+// 역극 (4.9) — 실시간 채팅형. 구분선 색상을 지문 스타일보다 약간 진한 연회색(#71717a)으로 미감 조정
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
@@ -81,7 +81,7 @@ const fmtHM = (iso: string) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
-/** *지문* -> 기울임+회색, **강조** -> 굵게, --- -> 구분선(어두운 회색) 파싱하는 함수 */
+/** *지문* -> 기울임+회색, **강조** -> 굵게, --- -> 구분선(지문보다 살짝 진한 연회색) 파싱하는 함수 */
 const renderFormattedText = (rawText: string) => {
   if (!rawText) return '';
   const html = rawText
@@ -90,7 +90,7 @@ const renderFormattedText = (rawText: string) => {
     .replace(/>/g, '&gt;')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em style="color: #a1a1aa; font-style: italic;">$1</em>')
-    .replace(/^(---|\*\*\*|___)$/gm, '<hr style="border: none; border-top: 1.5px solid #666666; margin: 10px 0; opacity: 0.8;" />')
+    .replace(/^(---|\*\*\*|___)$/gm, '<hr style="border: none; border-top: 1px solid #71717a; margin: 10px 0; opacity: 0.75;" />')
     .replace(/\n/g, '<br/>');
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 };
